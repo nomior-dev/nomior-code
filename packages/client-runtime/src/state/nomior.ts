@@ -19,6 +19,10 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:review-jobs-list",
       tag: WS_METHODS.nomiorReviewJobsList,
     }),
+    getReviewJob: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:review-job-get",
+      tag: WS_METHODS.nomiorReviewJobGet,
+    }),
     requestManualReview: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:review-request-manual",
       tag: WS_METHODS.nomiorReviewRequestManual,

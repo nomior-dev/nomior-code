@@ -86,7 +86,6 @@ export interface SeedGoogleAccount extends SeedConnectorAccount {
  * itself "Work calendar" would be the one account in the product wearing a
  * label no real connect can produce.
  */
-
 export const seedGoogleAccounts: ReadonlyArray<SeedGoogleAccount> = [
   {
     accountId: "google-work",
@@ -1076,6 +1075,8 @@ export interface SeedReviewJob {
   readonly headSha: string;
   readonly riskTier: "low" | "medium" | "high";
   readonly status: "queued" | "reviewing" | "waiting-external" | "approved" | "not-approved";
+  /** Where the pull request itself stands. The board lists `open` only. */
+  readonly pullRequestState: "open" | "merged" | "closed";
   readonly verdict: "approve" | "approve-with-followups" | "not-approved" | null;
   readonly manualReviewRequested: boolean;
   readonly attempts: number;
@@ -1096,6 +1097,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "4f2a9c1",
     riskTier: "high",
     status: "queued",
+    pullRequestState: "open",
     verdict: null,
     manualReviewRequested: false,
     attempts: 0,
@@ -1114,6 +1116,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "8b13e7d",
     riskTier: "medium",
     status: "queued",
+    pullRequestState: "open",
     verdict: null,
     manualReviewRequested: false,
     attempts: 0,
@@ -1132,6 +1135,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "c07d4aa",
     riskTier: "medium",
     status: "reviewing",
+    pullRequestState: "open",
     verdict: null,
     manualReviewRequested: false,
     attempts: 1,
@@ -1172,6 +1176,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "51ff902",
     riskTier: "high",
     status: "waiting-external",
+    pullRequestState: "open",
     verdict: null,
     manualReviewRequested: true,
     attempts: 1,
@@ -1207,6 +1212,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "a91c3f5",
     riskTier: "low",
     status: "approved",
+    pullRequestState: "open",
     verdict: "approve-with-followups",
     manualReviewRequested: false,
     attempts: 1,
@@ -1236,6 +1242,7 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     headSha: "6d2b840",
     riskTier: "high",
     status: "not-approved",
+    pullRequestState: "open",
     verdict: "not-approved",
     manualReviewRequested: false,
     attempts: 2,
@@ -1290,6 +1297,54 @@ export const seedReviewJobs: ReadonlyArray<SeedReviewJob> = [
     runtimeEvidence: [
       { kind: "tests-run", detail: "vitest 812 passed, 3 failed in agents/rebalancer" },
     ],
+  },
+  // The last two are settled pull requests, and the board must not list them:
+  // a review of merged or closed work is a card with nothing left to decide.
+  {
+    jobId: "rev-107",
+    repo: "nomior-dev/nomior-code",
+    pullRequestNumber: 396,
+    pullRequestTitle: "fix(web): calendar header follows the grid",
+    headSha: "c40f118",
+    riskTier: "low",
+    status: "approved",
+    pullRequestState: "merged",
+    verdict: "approve",
+    manualReviewRequested: false,
+    attempts: 1,
+    createdAt: "2026-08-27T11:05:00.000Z",
+    updatedAt: "2026-08-27T11:48:00.000Z",
+    lastStartedAt: "2026-08-27T11:20:00.000Z",
+    failureReason: null,
+    findings: [],
+    runtimeEvidence: [{ kind: "ci-green", detail: "checks green on 396 at c40f118" }],
+  },
+  {
+    jobId: "rev-108",
+    repo: "nomior-dev/nomior-music",
+    pullRequestNumber: 91,
+    pullRequestTitle: "spike(catalog): MusicBrainz as an ISRC backfill source",
+    headSha: "0e7ab52",
+    riskTier: "medium",
+    status: "waiting-external",
+    pullRequestState: "closed",
+    verdict: null,
+    manualReviewRequested: true,
+    attempts: 1,
+    createdAt: "2026-08-26T16:00:00.000Z",
+    updatedAt: "2026-08-26T16:40:00.000Z",
+    lastStartedAt: "2026-08-26T16:12:00.000Z",
+    failureReason: null,
+    findings: [
+      {
+        severity: "medium",
+        summary:
+          "The backfill reads MusicBrainz without a rate limit, which their terms cap at one request a second.",
+        file: "apps/server/src/catalog/musicbrainz.ts",
+        line: 44,
+      },
+    ],
+    runtimeEvidence: [{ kind: "live-probe", detail: "300 lookups, 41 unmatched recordings" }],
   },
 ];
 

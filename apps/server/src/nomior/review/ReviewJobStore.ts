@@ -25,6 +25,7 @@ import {
   GateDecision,
   ReviewJobId,
   ReviewJobStatus,
+  ReviewPullRequestState,
   ReviewRiskTier,
   isAllowedTransition,
   type ReviewJob,
@@ -125,11 +126,29 @@ export interface ReviewJobStoreShape {
   >;
   /**
    * The board's read: newest-updated first, `failed` jobs left out because the
-   * board has no column for them.
+   * board has no column for them, and merged or closed pull requests left out
+   * because their review is finished work nobody can act on.
    */
   readonly listRecent: (
     limit: number,
   ) => Effect.Effect<ReadonlyArray<ReviewJobBoardRow>, PersistenceSqlError>;
+  /**
+   * One job's board row, for its own page. Unlike `listRecent` this answers for
+   * merged and closed pull requests too: a link to a card the board has since
+   * dropped should say what happened rather than 404.
+   */
+  readonly getBoardRow: (
+    id: ReviewJobId,
+  ) => Effect.Effect<Option.Option<ReviewJobBoardRow>, PersistenceSqlError>;
+  /**
+   * Records that the pull request merged or closed. This is forge news, not
+   * engine progress, so it leaves `status` and `updated_at` alone — the job
+   * keeps whatever the review left it in, and simply stops being listed.
+   */
+  readonly setPullRequestState: (
+    id: ReviewJobId,
+    state: ReviewPullRequestState,
+  ) => Effect.Effect<void, PersistenceSqlError | ReviewJobNotFoundError>;
   /**
    * Records that a human was asked to look. Idempotent: a repeat request keeps
    * the original timestamp, and it never touches `status` — see the 006
@@ -156,6 +175,7 @@ const ReviewJobRow = Schema.Struct({
   refValue: Schema.String,
   headSha: Schema.String,
   status: ReviewJobStatus,
+  pullRequestState: ReviewPullRequestState,
   riskTier: ReviewRiskTier,
   attempts: Schema.Int,
   cooldownUntil: Schema.NullOr(Schema.String),
@@ -191,6 +211,7 @@ const rowToJob = (row: ReviewJobRow): ReviewJob => ({
       : { kind: "thread", threadId: ThreadId.make(row.refValue) },
   headSha: row.headSha,
   status: row.status,
+  pullRequestState: row.pullRequestState,
   riskTier: row.riskTier,
   attempts: row.attempts,
   cooldownUntil: row.cooldownUntil,
@@ -215,6 +236,7 @@ const jobColumns = (table: string) => `
   ${table}ref_value AS "refValue",
   ${table}head_sha AS "headSha",
   ${table}status,
+  ${table}pr_state AS "pullRequestState",
   ${table}risk_tier AS "riskTier",
   ${table}attempts,
   ${table}cooldown_until AS "cooldownUntil",
@@ -295,6 +317,7 @@ export const make = Effect.gen(function* () {
         FROM nomior_review_jobs j
         LEFT JOIN nomior_review_finding_counts c ON c.job_id = j.id
         WHERE j.status <> 'failed'
+          AND j.pr_state = 'open'
         ORDER BY j.updated_at DESC, j.id ASC
         LIMIT ${limit}
       `,
@@ -453,6 +476,29 @@ export const make = Effect.gen(function* () {
     },
   );
 
+  const getBoardRow: ReviewJobStoreShape["getBoardRow"] = Effect.fn("ReviewJobStore.getBoardRow")(
+    function* (id) {
+      const row = yield* findBoardRowById({ id }).pipe(
+        Effect.mapError(toPersistenceSqlError("ReviewJobStore.getBoardRow:query")),
+      );
+      return Option.map(row, rowToBoardRow);
+    },
+  );
+
+  const setPullRequestState: ReviewJobStoreShape["setPullRequestState"] = Effect.fn(
+    "ReviewJobStore.setPullRequestState",
+  )(function* (id, state) {
+    const updated = yield* sql<{ readonly id: string }>`
+      UPDATE nomior_review_jobs
+      SET pr_state = ${state}
+      WHERE id = ${id}
+      RETURNING id
+    `.pipe(Effect.mapError(toPersistenceSqlError("ReviewJobStore.setPullRequestState:update")));
+    if (updated.length === 0) {
+      return yield* new ReviewJobNotFoundError({ id });
+    }
+  });
+
   const requestManualReview: ReviewJobStoreShape["requestManualReview"] = Effect.fn(
     "ReviewJobStore.requestManualReview",
   )(function* (id, now) {
@@ -499,6 +545,8 @@ export const make = Effect.gen(function* () {
     countStartedSince,
     transition,
     listRecent,
+    getBoardRow,
+    setPullRequestState,
     requestManualReview,
     setFindingCounts,
   });

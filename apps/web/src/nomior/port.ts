@@ -22,6 +22,7 @@ import type {
   MemoryCandidateResolution,
   ProviderInstanceItem,
   ReviewJob,
+  ReviewJobDetail,
   SchedulerState,
 } from "./types";
 
@@ -33,7 +34,10 @@ export interface NomiorDataPort {
    */
   readonly isFixture: boolean;
 
+  /** Open pull requests only: a merged or closed one leaves the board. */
   listReviewJobs(): Promise<readonly ReviewJob[]>;
+  /** Answers for settled pull requests too, so a dropped card's link explains itself. */
+  getReviewJob(jobId: string): Promise<ReviewJobDetail>;
   requestManualReview(jobId: string): Promise<void>;
 
   searchContext(query: string): Promise<readonly ContextSnippet[]>;

@@ -13,6 +13,7 @@ import {
   type NomiorCalendarAccount,
   type NomiorCalendarEvent,
   type NomiorReviewJob,
+  type NomiorReviewJobDetail,
   type NomiorSchedulerState,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -66,9 +67,9 @@ const toWireStatus = (status: ReviewJobBoardRow["status"]): NomiorReviewJob["sta
 
 /**
  * The gate's `approve-with-followups` shows as approved: the followups are
- * findings, and the card already renders the severity tally.
+ * findings, and the job's page renders the severity tally.
  */
-const toWireVerdict = (verdict: ReviewJobBoardRow["verdict"]): NomiorReviewJob["verdict"] => {
+const toWireVerdict = (verdict: ReviewJobBoardRow["verdict"]): NomiorReviewJobDetail["verdict"] => {
   if (verdict === null) return null;
   return verdict === "not-approved" ? "not-approved" : "approved";
 };
@@ -82,12 +83,24 @@ const toWireReviewJob = (row: ReviewJobBoardRow): NomiorReviewJob | null => {
     repo: row.repo,
     pullRequestNumber: row.target.number,
     pullRequestTitle: row.title ?? "",
-    riskTier: row.riskTier,
     status,
+    updatedAt: row.updatedAt,
+  };
+};
+
+/** The card's facts plus everything the engine knows, for one job's own page. */
+const toWireReviewJobDetail = (row: ReviewJobBoardRow): NomiorReviewJobDetail | null => {
+  const job = toWireReviewJob(row);
+  if (job === null) return null;
+  return {
+    ...job,
+    pullRequestState: row.pullRequestState,
+    riskTier: row.riskTier,
     verdict: toWireVerdict(row.verdict),
     severityCounts: row.severityCounts,
     manualReviewRequested: row.manualReviewRequestedAt !== null,
-    updatedAt: row.updatedAt,
+    headSha: row.headSha,
+    createdAt: row.createdAt,
   };
 };
 
@@ -103,6 +116,25 @@ export const listReviewJobs = Effect.fn("nomior.rpc.listReviewJobs")(function* (
     if (job !== null) jobs.push(job);
   }
   return { jobs };
+});
+
+export const getReviewJob = Effect.fn("nomior.rpc.getReviewJob")(function* (
+  store: ReviewJobStoreShape,
+  input: { readonly jobId: string },
+) {
+  const row = yield* store
+    .getBoardRow(ReviewJobId.make(input.jobId))
+    .pipe(Effect.mapError(failed("This review is unavailable.", true)));
+  const detail = Option.isSome(row) ? toWireReviewJobDetail(row.value) : null;
+  if (detail === null) {
+    // Either there is no such job, or it is one the board never had a card for
+    // (a failed run, or a review of a thread rather than a pull request).
+    return yield* new NomiorRequestError({
+      message: `No review for id ${input.jobId}.`,
+      retryable: false,
+    });
+  }
+  return detail;
 });
 
 export const requestManualReview = Effect.fn("nomior.rpc.requestManualReview")(function* (

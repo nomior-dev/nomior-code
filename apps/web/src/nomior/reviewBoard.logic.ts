@@ -3,7 +3,14 @@
  *
  * @module nomior/reviewBoard.logic
  */
-import type { ReviewJob, ReviewJobStatus, ReviewRiskTier, ReviewSeverityCounts } from "./types";
+import type {
+  ReviewJob,
+  ReviewJobDetail,
+  ReviewJobStatus,
+  ReviewPullRequestState,
+  ReviewRiskTier,
+  ReviewSeverityCounts,
+} from "./types";
 
 export interface ReviewColumn {
   readonly id: ReviewJobStatus;
@@ -25,9 +32,54 @@ export const REVIEW_COLUMNS: readonly ReviewColumn[] = [
   { id: "not-approved", title: "Not approved", dotClass: "bg-destructive" },
 ];
 
-/** Jobs per column, most recently updated first inside each. */
+/** What the board calls a status, for pages that show one without its column. */
+export function reviewStatusLabel(status: ReviewJobStatus): string {
+  return REVIEW_COLUMNS.find((column) => column.id === status)?.title ?? status;
+}
+
+/**
+ * How the cards inside every column are ordered.
+ *
+ * One order for the whole board, not one per column: the columns are stages of
+ * the same queue, and a board where each column sorts differently cannot be
+ * read across.
+ */
+export const REVIEW_SORTS = [
+  { id: "recent", label: "Recently updated" },
+  { id: "oldest", label: "Oldest first" },
+  { id: "project", label: "Project" },
+] as const;
+
+export type ReviewSortId = (typeof REVIEW_SORTS)[number]["id"];
+
+export function isReviewSort(value: string | null): value is ReviewSortId {
+  return REVIEW_SORTS.some((sort) => sort.id === value);
+}
+
+export function reviewSortLabel(id: ReviewSortId): string {
+  return REVIEW_SORTS.find((sort) => sort.id === id)?.label ?? id;
+}
+
+const REVIEW_COMPARATORS: Record<ReviewSortId, (left: ReviewJob, right: ReviewJob) => number> = {
+  recent: (left, right) => right.updatedAt.localeCompare(left.updatedAt),
+  oldest: (left, right) => left.updatedAt.localeCompare(right.updatedAt),
+  // Within a project, by pull request number: that is the order the numbers
+  // themselves imply, and it puts a project's cards in one run.
+  project: (left, right) =>
+    left.repo.localeCompare(right.repo) || left.pullRequestNumber - right.pullRequestNumber,
+};
+
+export function sortReviewJobs(
+  jobs: readonly ReviewJob[],
+  sort: ReviewSortId,
+): readonly ReviewJob[] {
+  return [...jobs].sort(REVIEW_COMPARATORS[sort]);
+}
+
+/** Jobs per column, each column in the board's chosen order. */
 export function groupReviewJobs(
   jobs: readonly ReviewJob[],
+  sort: ReviewSortId = "recent",
 ): ReadonlyMap<ReviewJobStatus, readonly ReviewJob[]> {
   const grouped = new Map<ReviewJobStatus, ReviewJob[]>(
     REVIEW_COLUMNS.map((column) => [column.id, []]),
@@ -36,9 +88,34 @@ export function groupReviewJobs(
     grouped.get(job.status)?.push(job);
   }
   for (const columnJobs of grouped.values()) {
-    columnJobs.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    columnJobs.sort(REVIEW_COMPARATORS[sort]);
   }
   return grouped;
+}
+
+/**
+ * The pull request on the forge.
+ *
+ * A job carries `owner/name` and a number and no host: every repo the engine
+ * reviews today is on GitHub. The day one is not, this is the one place that
+ * has to learn about it.
+ */
+export function pullRequestUrl(job: {
+  readonly repo: string;
+  readonly pullRequestNumber: number;
+}): string {
+  return `https://github.com/${job.repo}/pull/${job.pullRequestNumber}`;
+}
+
+export function pullRequestStateLabel(state: ReviewPullRequestState): string {
+  switch (state) {
+    case "open":
+      return "Open";
+    case "merged":
+      return "Merged";
+    case "closed":
+      return "Closed";
+  }
 }
 
 export type BadgeTone = "success" | "warning" | "error" | "info" | "secondary" | "outline";
@@ -56,20 +133,6 @@ export function severityChips(counts: ReviewSeverityCounts): readonly SeverityCh
   if (counts.major > 0) chips.push({ label: "major", count: counts.major, tone: "warning" });
   if (counts.minor > 0) chips.push({ label: "minor", count: counts.minor, tone: "secondary" });
   return chips;
-}
-
-/**
- * The edge marker on a card, or null for a card with nothing above minor.
- *
- * A column holds a dozen cards and the badges only separate on a second read.
- * One stripe, coloured by the worst finding on the card, is what makes the two
- * cards worth opening findable in one pass — so only blocker and major earn
- * one, or every card has a stripe and the stripe means nothing.
- */
-export function severityAccentClass(counts: ReviewSeverityCounts): string | null {
-  if (counts.blocker > 0) return "bg-destructive";
-  if (counts.major > 0) return "bg-warning";
-  return null;
 }
 
 export function riskTierTone(tier: ReviewRiskTier): BadgeTone {
@@ -98,6 +161,6 @@ export function riskTierLabel(tier: ReviewRiskTier): string {
  * Manual review can be requested while the auto-review still owns the card:
  * queued or in-flight jobs, once only.
  */
-export function canRequestManualReview(job: ReviewJob): boolean {
+export function canRequestManualReview(job: ReviewJobDetail): boolean {
   return !job.manualReviewRequested && (job.status === "queue" || job.status === "reviewing");
 }

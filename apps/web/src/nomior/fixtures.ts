@@ -36,7 +36,7 @@ import type {
   MeetingDetail,
   MemoryCandidate,
   ProviderInstanceItem,
-  ReviewJob,
+  ReviewJobDetail,
   SchedulerState,
   TranscriptTurn,
 } from "./types";
@@ -54,17 +54,25 @@ function weekStart(now: Date): Date {
   return monday;
 }
 
-function reviewJobs(now: Date): ReviewJob[] {
+/**
+ * Every seeded job, board card and detail in one array — the same row answers
+ * both reads, so a manual-review request made on a card is the one the detail
+ * page shows. `listReviewJobs` filters it the way the server's query does.
+ */
+function reviewJobs(now: Date): ReviewJobDetail[] {
   return generatedFixtures.reviewJobs.map((job) => ({
     id: job.id,
     repo: job.repo,
     pullRequestNumber: job.pullRequestNumber,
     pullRequestTitle: job.pullRequestTitle,
+    pullRequestState: job.pullRequestState,
     riskTier: job.riskTier,
     status: job.status,
     verdict: job.verdict,
     severityCounts: job.severityCounts,
     manualReviewRequested: job.manualReviewRequested,
+    headSha: job.headSha,
+    createdAt: hoursAgo(now, job.createdAgoHours),
     updatedAt: hoursAgo(now, job.updatedAgoHours),
   }));
 }
@@ -209,7 +217,13 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
   return {
     isFixture: true,
 
-    listReviewJobs: () => Promise.resolve(jobs),
+    listReviewJobs: () => Promise.resolve(jobs.filter((job) => job.pullRequestState === "open")),
+    getReviewJob: (jobId) => {
+      const job = jobs.find((entry) => entry.id === jobId);
+      return job === undefined
+        ? Promise.reject(new Error(`No review for id ${jobId}.`))
+        : Promise.resolve(job);
+    },
     requestManualReview: (jobId) => {
       jobs = jobs.map((job) =>
         job.id === jobId

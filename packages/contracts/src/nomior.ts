@@ -40,8 +40,8 @@ export const NomiorReviewRiskTier = Schema.Literals(["low", "medium", "high"]);
 export type NomiorReviewRiskTier = typeof NomiorReviewRiskTier.Type;
 
 /**
- * What the board shows. The gate's `approve-with-followups` reports as
- * `approved` — followups are findings, and the card already renders those.
+ * The gate's `approve-with-followups` reports as `approved`: followups are
+ * findings, and a job's page renders those as its severity tally.
  */
 export const NomiorReviewVerdict = Schema.Literals(["approved", "not-approved"]);
 export type NomiorReviewVerdict = typeof NomiorReviewVerdict.Type;
@@ -53,17 +53,25 @@ export const NomiorReviewSeverityCounts = Schema.Struct({
 });
 export type NomiorReviewSeverityCounts = typeof NomiorReviewSeverityCounts.Type;
 
+/**
+ * Where the pull request itself stands, which is not where its review stands.
+ * The board lists open pull requests only: a merged or closed one is finished
+ * work, and a review card for it is a card nobody can act on.
+ */
+export const NomiorReviewPullRequestState = Schema.Literals(["open", "merged", "closed"]);
+export type NomiorReviewPullRequestState = typeof NomiorReviewPullRequestState.Type;
+
+/**
+ * One card. Deliberately four facts and a timestamp: the board is scanned, not
+ * read, and everything the engine knows about a job is one click away on its
+ * own page rather than on every card in every column.
+ */
 export const NomiorReviewJob = Schema.Struct({
   id: TrimmedNonEmptyString,
   repo: TrimmedNonEmptyString,
   pullRequestNumber: Schema.Int,
   pullRequestTitle: Schema.String,
-  riskTier: NomiorReviewRiskTier,
   status: NomiorReviewJobStatus,
-  /** Null until a review leg has produced a verdict. */
-  verdict: Schema.NullOr(NomiorReviewVerdict),
-  severityCounts: NomiorReviewSeverityCounts,
-  manualReviewRequested: Schema.Boolean,
   updatedAt: IsoDateTime,
 });
 export type NomiorReviewJob = typeof NomiorReviewJob.Type;
@@ -72,6 +80,31 @@ export const NomiorReviewJobsListResult = Schema.Struct({
   jobs: Schema.Array(NomiorReviewJob),
 });
 export type NomiorReviewJobsListResult = typeof NomiorReviewJobsListResult.Type;
+
+export const NomiorReviewJobGetInput = Schema.Struct({
+  jobId: TrimmedNonEmptyString,
+});
+export type NomiorReviewJobGetInput = typeof NomiorReviewJobGetInput.Type;
+
+/**
+ * Everything the engine knows about one job, for its own page.
+ *
+ * A job whose pull request has since merged or closed still resolves here: the
+ * board dropped its card, and a link that used to work should say why rather
+ * than 404.
+ */
+export const NomiorReviewJobDetail = Schema.Struct({
+  ...NomiorReviewJob.fields,
+  pullRequestState: NomiorReviewPullRequestState,
+  riskTier: NomiorReviewRiskTier,
+  /** Null until a review leg has produced a verdict. */
+  verdict: Schema.NullOr(NomiorReviewVerdict),
+  severityCounts: NomiorReviewSeverityCounts,
+  manualReviewRequested: Schema.Boolean,
+  headSha: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+export type NomiorReviewJobDetail = typeof NomiorReviewJobDetail.Type;
 
 export const NomiorReviewRequestManualInput = Schema.Struct({
   jobId: TrimmedNonEmptyString,

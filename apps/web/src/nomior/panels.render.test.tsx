@@ -38,6 +38,7 @@ import {
 } from "./MeetingsPanel";
 import { PortErrorState } from "./PortErrorState";
 import { ReviewBoardPanel, ReviewJobCard } from "./ReviewBoardPanel";
+import { ReviewJobReader } from "./ReviewJobPanel";
 
 describe("Nomior panels render standalone", () => {
   it("review board renders every column", () => {
@@ -85,17 +86,38 @@ describe("Nomior panel subcomponents render fixture data", () => {
   const now = new Date(2026, 7, 26, 12, 0);
   const noop = () => undefined;
 
-  it("review job cards show repo, PR, severity chips and the manual-review action", async () => {
+  it("review job cards carry the pull request, its project, and nothing else", async () => {
     const port = createFixtureNomiorPort(now);
     const jobs = await port.listReviewJobs();
-    const markup = jobs
-      .map((job) => renderToStaticMarkup(<ReviewJobCard job={job} onRequestManualReview={noop} />))
-      .join("");
+    const markup = jobs.map((job) => renderToStaticMarkup(<ReviewJobCard job={job} />)).join("");
+    expect(markup).toContain("feat(server): context broker retrieval pipeline");
     expect(markup).toContain("nomior-dev/nomior-code");
     expect(markup).toContain("#412");
+    // The engine's judgement belongs to the job's page. A card that repeats it
+    // is the board this one replaced.
+    for (const absent of ["High risk", "blocker", "Not approved", "Request manual review"]) {
+      expect(markup).not.toContain(absent);
+    }
+  });
+
+  it("a review's own page carries the judgement the card leaves out", async () => {
+    const port = createFixtureNomiorPort(now);
+    const job = await port.getReviewJob("rev-106");
+    const markup = renderToStaticMarkup(<ReviewJobReader job={job} onRequestManualReview={noop} />);
+    expect(markup).toContain("feat(agents): unattended portfolio rebalancer");
+    expect(markup).toContain("High risk");
     expect(markup).toContain("2 blocker");
     expect(markup).toContain("Not approved");
-    expect(markup).toContain("Request manual review");
+    expect(markup).toContain("https://github.com/nomior-dev/nomior-invest/pull/379");
+  });
+
+  it("a settled pull request says so on the page the board no longer links to", async () => {
+    const port = createFixtureNomiorPort(now);
+    const merged = await port.getReviewJob("rev-107");
+    const markup = renderToStaticMarkup(
+      <ReviewJobReader job={merged} onRequestManualReview={noop} />,
+    );
+    expect(markup).toContain("Merged");
   });
 
   it("the legend names every account and says which are filtered out", async () => {

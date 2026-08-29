@@ -168,13 +168,13 @@ const seedReviewBoard = Effect.fn("nomiorSeed.reviewBoard")(function* () {
     yield* sql`
       INSERT INTO nomior_review_jobs (
         id, repo, ref_kind, ref_value, head_sha,
-        status, risk_tier, attempts, cooldown_until, last_started_at,
+        status, pr_state, risk_tier, attempts, cooldown_until, last_started_at,
         failure_reason, verdict, created_at, updated_at,
         title, manual_review_requested_at
       )
       VALUES (
         ${job.jobId}, ${job.repo}, ${ref.refKind}, ${ref.refValue}, ${job.headSha},
-        ${job.status}, ${job.riskTier}, ${job.attempts}, ${null}, ${job.lastStartedAt},
+        ${job.status}, ${job.pullRequestState}, ${job.riskTier}, ${job.attempts}, ${null}, ${job.lastStartedAt},
         ${job.failureReason}, ${job.verdict}, ${job.createdAt}, ${job.updatedAt},
         ${job.pullRequestTitle}, ${job.manualReviewRequested ? job.updatedAt : null}
       )
@@ -184,6 +184,7 @@ const seedReviewBoard = Effect.fn("nomiorSeed.reviewBoard")(function* () {
         ref_value = excluded.ref_value,
         head_sha = excluded.head_sha,
         status = excluded.status,
+        pr_state = excluded.pr_state,
         risk_tier = excluded.risk_tier,
         attempts = excluded.attempts,
         cooldown_until = excluded.cooldown_until,

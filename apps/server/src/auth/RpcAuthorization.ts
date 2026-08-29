@@ -133,6 +133,7 @@ export const RPC_REQUIRED_SCOPES = {
   // a memory candidate and requesting a manual review both change what a future
   // review is judged against, so they take the review-write scope.
   [WS_METHODS.nomiorReviewJobsList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorReviewJobGet]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorReviewRequestManual]: AuthReviewWriteScope,
   [WS_METHODS.nomiorContextSearch]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorMemoryCandidatesList]: AuthOrchestrationReadScope,

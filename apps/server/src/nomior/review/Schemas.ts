@@ -26,6 +26,14 @@ export type ReviewJobStatus = typeof ReviewJobStatus.Type;
 export const ReviewRiskTier = Schema.Literals(["low", "medium", "high"]);
 export type ReviewRiskTier = typeof ReviewRiskTier.Type;
 
+/**
+ * Where the reviewed pull request stands, which is independent of where its
+ * review stands: a review can still be waiting on a human long after the pull
+ * request merged. The board lists `open` only.
+ */
+export const ReviewPullRequestState = Schema.Literals(["open", "merged", "closed"]);
+export type ReviewPullRequestState = typeof ReviewPullRequestState.Type;
+
 /** What a review job reviews: a forge pull request or an agent thread's work. */
 export const ReviewTarget = Schema.Union([
   Schema.Struct({
@@ -48,6 +56,7 @@ export const ReviewJob = Schema.Struct({
   target: ReviewTarget,
   headSha: TrimmedNonEmptyString,
   status: ReviewJobStatus,
+  pullRequestState: ReviewPullRequestState,
   riskTier: ReviewRiskTier,
   attempts: NonNegativeInt,
   cooldownUntil: Schema.NullOr(IsoDateTime),

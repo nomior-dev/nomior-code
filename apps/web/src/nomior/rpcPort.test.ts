@@ -23,6 +23,7 @@ const unstubbed = (call: string) => (): never => {
 
 const baseRunner: NomiorCommandRunner = {
   listReviewJobs: unstubbed("listReviewJobs"),
+  getReviewJob: unstubbed("getReviewJob"),
   requestManualReview: unstubbed("requestManualReview"),
   searchContext: unstubbed("searchContext"),
   listMeetings: unstubbed("listMeetings"),

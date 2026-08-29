@@ -65,6 +65,14 @@ export const makeNomiorPanelHandlers = ({
       }),
     ),
 
+  [WS_METHODS.nomiorReviewJobGet]: (input: { readonly jobId: string }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorReviewJobGet,
+      Effect.gen(function* () {
+        return yield* panelHandlers.getReviewJob(yield* ReviewJobStore, input);
+      }),
+    ),
+
   [WS_METHODS.nomiorReviewRequestManual]: (input: { readonly jobId: string }) =>
     observeRpcEffect(
       WS_METHODS.nomiorReviewRequestManual,

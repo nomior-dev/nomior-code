@@ -28,6 +28,8 @@ import type {
   NomiorConnectorSyncResult,
   NomiorGoogleClientIdSetInput,
   NomiorMemoryCandidatesListResult,
+  NomiorReviewJobDetail,
+  NomiorReviewJobGetInput,
   NomiorReviewJobsListResult,
   NomiorReviewRequestManualInput,
   NomiorSchedulerState,
@@ -43,6 +45,7 @@ type Settled<A> = Promise<AtomCommandResult<A, unknown>>;
 /** One method per Nomior RPC, already bound to an environment. */
 export interface NomiorCommandRunner {
   readonly listReviewJobs: () => Settled<NomiorReviewJobsListResult>;
+  readonly getReviewJob: (input: NomiorReviewJobGetInput) => Settled<NomiorReviewJobDetail>;
   readonly requestManualReview: (input: NomiorReviewRequestManualInput) => Settled<void>;
   readonly searchContext: (input: NomiorContextSearchInput) => Settled<NomiorContextSearchResult>;
   readonly listMeetings: () => Settled<NomiorMeetingsListResult>;
@@ -92,6 +95,7 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
     isFixture: false,
 
     listReviewJobs: async () => (await value(runner.listReviewJobs())).jobs,
+    getReviewJob: (jobId) => value(runner.getReviewJob({ jobId })),
     requestManualReview: async (jobId) => {
       await value(runner.requestManualReview({ jobId }));
     },

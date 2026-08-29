@@ -35,6 +35,7 @@ import { Route as NomiorContextRouteImport } from './routes/nomior.context'
 import { Route as NomiorCalendarRouteImport } from './routes/nomior.calendar'
 import { Route as ConnectCallbackRouteImport } from './routes/connect_.callback'
 import { Route as ChatPullRequestsRouteImport } from './routes/_chat.pull-requests'
+import { Route as NomiorReviewJobIdRouteImport } from './routes/nomior.review_.$jobId'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
 
@@ -167,6 +168,11 @@ const ChatPullRequestsRoute = ChatPullRequestsRouteImport.update({
   path: '/pull-requests',
   getParentRoute: () => ChatRoute,
 } as any)
+const NomiorReviewJobIdRoute = NomiorReviewJobIdRouteImport.update({
+  id: '/review_/$jobId',
+  path: '/review/$jobId',
+  getParentRoute: () => NomiorRoute,
+} as any)
 const ChatDraftDraftIdRoute = ChatDraftDraftIdRouteImport.update({
   id: '/draft/$draftId',
   path: '/draft/$draftId',
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/settings/source-control': typeof SettingsSourceControlRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
+  '/nomior/review/$jobId': typeof NomiorReviewJobIdRoute
 }
 export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/': typeof ChatIndexRoute
   '/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
+  '/nomior/review/$jobId': typeof NomiorReviewJobIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/_chat/': typeof ChatIndexRoute
   '/_chat/$environmentId/$threadId': typeof ChatEnvironmentIdThreadIdRoute
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
+  '/nomior/review_/$jobId': typeof NomiorReviewJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/settings/source-control'
     | '/$environmentId/$threadId'
     | '/draft/$draftId'
+    | '/nomior/review/$jobId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/connect'
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$environmentId/$threadId'
     | '/draft/$draftId'
+    | '/nomior/review/$jobId'
   id:
     | '__root__'
     | '/_chat'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/_chat/'
     | '/_chat/$environmentId/$threadId'
     | '/_chat/draft/$draftId'
+    | '/nomior/review_/$jobId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -554,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatPullRequestsRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/nomior/review_/$jobId': {
+      id: '/nomior/review_/$jobId'
+      path: '/review/$jobId'
+      fullPath: '/nomior/review/$jobId'
+      preLoaderRoute: typeof NomiorReviewJobIdRouteImport
+      parentRoute: typeof NomiorRoute
+    }
     '/_chat/draft/$draftId': {
       id: '/_chat/draft/$draftId'
       path: '/draft/$draftId'
@@ -593,6 +612,7 @@ interface NomiorRouteChildren {
   NomiorInstancesRoute: typeof NomiorInstancesRoute
   NomiorMeetingsRoute: typeof NomiorMeetingsRoute
   NomiorReviewRoute: typeof NomiorReviewRoute
+  NomiorReviewJobIdRoute: typeof NomiorReviewJobIdRoute
 }
 
 const NomiorRouteChildren: NomiorRouteChildren = {
@@ -601,6 +621,7 @@ const NomiorRouteChildren: NomiorRouteChildren = {
   NomiorInstancesRoute: NomiorInstancesRoute,
   NomiorMeetingsRoute: NomiorMeetingsRoute,
   NomiorReviewRoute: NomiorReviewRoute,
+  NomiorReviewJobIdRoute: NomiorReviewJobIdRoute,
 }
 
 const NomiorRouteWithChildren =

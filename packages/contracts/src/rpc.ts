@@ -39,6 +39,8 @@ import {
   NomiorMemoryCandidateResolveInput,
   NomiorMemoryCandidatesListResult,
   NomiorRequestError,
+  NomiorReviewJobDetail,
+  NomiorReviewJobGetInput,
   NomiorReviewJobsListResult,
   NomiorReviewRequestManualInput,
   NomiorSchedulerState,
@@ -360,6 +362,7 @@ export const WS_METHODS = {
 
   // Nomior panel methods
   nomiorReviewJobsList: "nomior.reviewJobs.list",
+  nomiorReviewJobGet: "nomior.reviewJobs.get",
   nomiorReviewRequestManual: "nomior.reviewJobs.requestManual",
   nomiorContextSearch: "nomior.context.search",
   nomiorMemoryCandidatesList: "nomior.memoryCandidates.list",
@@ -1072,6 +1075,12 @@ export const WsNomiorReviewJobsListRpc = Rpc.make(WS_METHODS.nomiorReviewJobsLis
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
 });
 
+export const WsNomiorReviewJobGetRpc = Rpc.make(WS_METHODS.nomiorReviewJobGet, {
+  payload: NomiorReviewJobGetInput,
+  success: NomiorReviewJobDetail,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
 export const WsNomiorReviewRequestManualRpc = Rpc.make(WS_METHODS.nomiorReviewRequestManual, {
   payload: NomiorReviewRequestManualInput,
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
@@ -1270,6 +1279,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
   WsNomiorReviewJobsListRpc,
+  WsNomiorReviewJobGetRpc,
   WsNomiorReviewRequestManualRpc,
   WsNomiorContextSearchRpc,
   WsNomiorMemoryCandidatesListRpc,

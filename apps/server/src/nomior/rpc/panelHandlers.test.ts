@@ -16,9 +16,19 @@ import * as ConnectorAccountStore from "../connectors/ConnectorAccountStore.ts";
 import * as CalendarEventStore from "../connectors/calendar/CalendarEventStore.ts";
 import * as ReviewJobStore from "../review/ReviewJobStore.ts";
 import { DeterministicSeedRuntime } from "../seed/deterministic.ts";
-import { SEED_NOW, seedCalendarEvents, seedConnectorAccounts } from "../seed/scenario.ts";
+import {
+  SEED_NOW,
+  seedCalendarEvents,
+  seedConnectorAccounts,
+  seedReviewJobs,
+} from "../seed/scenario.ts";
 import { NomiorSeedServices, seedNomior } from "../seed/seed.ts";
-import { listCalendarAccounts, listCalendarEvents, listReviewJobs } from "./panelHandlers.ts";
+import {
+  getReviewJob,
+  listCalendarAccounts,
+  listCalendarEvents,
+  listReviewJobs,
+} from "./panelHandlers.ts";
 
 const seedRuntime = NomiorSeedServices.pipe(
   Layer.provideMerge(
@@ -99,6 +109,45 @@ describe("panel handlers over the seeded database", () => {
           assert.isAbove(job.pullRequestTitle.length, 0, `job ${job.id} has no title`);
           assert.isAbove(job.pullRequestNumber, 0);
         }
+      }),
+    );
+
+    it.effect("leaves merged and closed pull requests off the board", () =>
+      Effect.gen(function* () {
+        yield* runSeed;
+        const store = yield* ReviewJobStore.ReviewJobStore;
+        const { jobs } = yield* listReviewJobs(store);
+
+        const open = seedReviewJobs.filter((job) => job.pullRequestState === "open");
+        const settled = seedReviewJobs.filter((job) => job.pullRequestState !== "open");
+        assert.isAbove(settled.length, 0, "the scenario must seed a settled pull request");
+        assert.deepStrictEqual(
+          jobs.map((job) => job.id).sort(),
+          open.map((job) => job.jobId).sort(),
+        );
+      }),
+    );
+
+    it.effect("answers for a settled job by id, so a dropped card's link explains itself", () =>
+      Effect.gen(function* () {
+        yield* runSeed;
+        const store = yield* ReviewJobStore.ReviewJobStore;
+        const settled = seedReviewJobs.find((job) => job.pullRequestState === "merged");
+        assert.isDefined(settled);
+
+        const detail = yield* getReviewJob(store, { jobId: settled!.jobId });
+        assert.strictEqual(detail.pullRequestState, "merged");
+        assert.strictEqual(detail.headSha, settled!.headSha);
+        assert.strictEqual(detail.riskTier, settled!.riskTier);
+      }),
+    );
+
+    it.effect("refuses an id no job has, without asking the caller to retry", () =>
+      Effect.gen(function* () {
+        yield* runSeed;
+        const store = yield* ReviewJobStore.ReviewJobStore;
+        const failure = yield* Effect.flip(getReviewJob(store, { jobId: "rev-nope" }));
+        assert.strictEqual(failure.retryable, false);
       }),
     );
   });

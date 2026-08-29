@@ -56,11 +56,17 @@ const utcTimeOf = (iso: string): { readonly hour: number; readonly minute: numbe
 // Review board
 // ---------------------------------------------------------------------------
 
+/**
+ * Every seeded job, settled pull requests included: the fixture port filters
+ * the board's list the way the server's query does, and its detail read has to
+ * answer for a job the board has already dropped.
+ */
 export interface GeneratedReviewJob {
   readonly id: string;
   readonly repo: string;
   readonly pullRequestNumber: number;
   readonly pullRequestTitle: string;
+  readonly pullRequestState: "open" | "merged" | "closed";
   readonly riskTier: "low" | "medium" | "high";
   readonly status: "queue" | "reviewing" | "waiting-external" | "approved" | "not-approved";
   readonly verdict: "approved" | "not-approved" | null;
@@ -70,6 +76,8 @@ export interface GeneratedReviewJob {
     readonly minor: number;
   };
   readonly manualReviewRequested: boolean;
+  readonly headSha: string;
+  readonly createdAgoHours: number;
   readonly updatedAgoHours: number;
 }
 
@@ -92,6 +100,7 @@ export const generatedReviewJobs = (): ReadonlyArray<GeneratedReviewJob> =>
     repo: job.repo,
     pullRequestNumber: job.pullRequestNumber,
     pullRequestTitle: job.pullRequestTitle,
+    pullRequestState: job.pullRequestState,
     riskTier: job.riskTier,
     // The board has one column per engine state; only `queued` is spelled
     // differently, because a column is a place and a status is a state.
@@ -100,6 +109,8 @@ export const generatedReviewJobs = (): ReadonlyArray<GeneratedReviewJob> =>
       job.verdict === null ? null : job.verdict === "not-approved" ? "not-approved" : "approved",
     severityCounts: severityCounts(job.findings.map((finding) => finding.severity)),
     manualReviewRequested: job.manualReviewRequested,
+    headSha: job.headSha,
+    createdAgoHours: hoursBeforeNow(job.createdAt),
     updatedAgoHours: hoursBeforeNow(job.updatedAt),
   }));
 

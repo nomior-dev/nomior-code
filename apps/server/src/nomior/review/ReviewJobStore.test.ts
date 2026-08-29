@@ -206,6 +206,49 @@ describe("ReviewJobStore", () => {
     }).pipe(Effect.provide(TestLayer)),
   );
 
+  it.effect("a merged or closed pull request leaves the board but keeps its page", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+
+      const { job } = yield* store.enqueue(enqueueInput);
+      const other = yield* store.enqueue({ ...enqueueInput, headSha: "def456", now: t1 });
+      assert.strictEqual((yield* store.listRecent(10)).length, 2);
+
+      yield* store.setPullRequestState(job.id, "merged");
+
+      const board = yield* store.listRecent(10);
+      assert.deepStrictEqual(
+        board.map((row) => row.id),
+        [other.job.id],
+      );
+
+      // The job itself is untouched: this is forge news, not engine progress.
+      const dropped = yield* store.getBoardRow(job.id);
+      assert.isTrue(Option.isSome(dropped));
+      assert.strictEqual(Option.getOrThrow(dropped).pullRequestState, "merged");
+      assert.strictEqual(Option.getOrThrow(dropped).status, job.status);
+      assert.strictEqual(Option.getOrThrow(dropped).updatedAt, job.updatedAt);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("setPullRequestState refuses an id no job has", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+      const failure = yield* Effect.flip(
+        store.setPullRequestState(ReviewJobId.make("missing"), "closed"),
+      );
+      assert.strictEqual(failure._tag, "NomiorReviewJobNotFoundError");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("a new job is open until the forge says otherwise", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+      const { job } = yield* store.enqueue(enqueueInput);
+      assert.strictEqual(job.pullRequestState, "open");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
   it.effect("listRecent orders by updated_at desc and hides failed jobs", () =>
     Effect.gen(function* () {
       const store = yield* ReviewJobStore.ReviewJobStore;

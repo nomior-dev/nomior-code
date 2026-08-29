@@ -32,19 +32,30 @@ export interface ReviewSeverityCounts {
   readonly minor: number;
 }
 
+/** Where the pull request stands. The board lists open ones only. */
+export type ReviewPullRequestState = "open" | "merged" | "closed";
+
+/** One card: what a column is scanned by, and nothing else. */
 export interface ReviewJob {
   readonly id: string;
   readonly repo: string;
   readonly pullRequestNumber: number;
   readonly pullRequestTitle: string;
-  readonly riskTier: ReviewRiskTier;
   readonly status: ReviewJobStatus;
+  /** ISO timestamp of the job's last state change. */
+  readonly updatedAt: string;
+}
+
+/** One job's own page: everything the engine knows about it. */
+export interface ReviewJobDetail extends ReviewJob {
+  readonly pullRequestState: ReviewPullRequestState;
+  readonly riskTier: ReviewRiskTier;
   /** Null until a review leg has produced a verdict. */
   readonly verdict: ReviewVerdict | null;
   readonly severityCounts: ReviewSeverityCounts;
   readonly manualReviewRequested: boolean;
-  /** ISO timestamp of the job's last state change. */
-  readonly updatedAt: string;
+  readonly headSha: string;
+  readonly createdAt: string;
 }
 
 // ---------------------------------------------------------------------------

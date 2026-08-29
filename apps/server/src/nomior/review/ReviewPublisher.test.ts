@@ -9,6 +9,7 @@ const job: ReviewJob = {
   id: ReviewJobId.make("job-1"),
   repo: "nomior-dev/nomior-code",
   target: { kind: "thread", threadId: ThreadId.make("thread-1") },
+  pullRequestState: "open",
   headSha: "abc123",
   status: "approved",
   riskTier: "low",
