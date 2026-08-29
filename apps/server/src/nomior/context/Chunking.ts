@@ -175,13 +175,14 @@ export const planChunks = (
     }
     const first = pending[0]!;
     const text = pending.map((piece) => piece.text).join(SEGMENT_SEPARATOR);
-    const speakers = new Set(pending.map((piece) => piece.speaker));
     // Chunk end time: the latest timestamp any piece carries (pieces are in
     // order, so the last timestamped piece has it). Trailing untimed pieces
     // must not drag the end back to the chunk's start.
     const lastTimed = pending.findLast((piece) => piece.tsEnd !== null || piece.tsStart !== null);
     const chunkMeta = {
-      speaker: speakers.size === 1 ? first.speaker : null,
+      // Every pending piece shares `first`'s speaker: the loop below flushes on
+      // a speaker change, so a chunk never spans two.
+      speaker: first.speaker,
       section: first.section,
       tsStart: first.tsStart,
       tsEnd: lastTimed === undefined ? null : (lastTimed.tsEnd ?? lastTimed.tsStart),
@@ -198,9 +199,16 @@ export const planChunks = (
   };
 
   for (const piece of placed) {
+    // A speaker change ends a chunk even when there is room left. Merging across
+    // one used to null `speaker` (see `flush`), which dropped the speaker from
+    // the contextual prefix and left the transcript UI with no turn boundaries
+    // to render. Segments without a speaker — every document and email — compare
+    // equal here, so their chunking is unchanged.
+    const speakerChanged = pending.length > 0 && pending[0]!.speaker !== piece.speaker;
     if (
-      pending.length > 0 &&
-      pendingLength + SEGMENT_SEPARATOR.length + piece.text.length > maxChars
+      speakerChanged ||
+      (pending.length > 0 &&
+        pendingLength + SEGMENT_SEPARATOR.length + piece.text.length > maxChars)
     ) {
       flush();
     }

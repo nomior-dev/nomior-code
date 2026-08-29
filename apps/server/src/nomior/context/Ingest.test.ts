@@ -167,7 +167,11 @@ layer("ContextIngest", (it) => {
       `;
       assert.strictEqual(tasks.length, 1);
       assert.strictEqual(tasks[0]?.status, "open");
-      assert.strictEqual(tasks[0]?.chunkId, `${result.sourceId}/0`);
+      // Olga's turn, so chunk 1 — the decision above came from Ivan's, chunk 0.
+      // Each span lands in the chunk that actually contains it rather than in a
+      // single chunk spanning both speakers.
+      assert.strictEqual(tasks[0]?.chunkId, `${result.sourceId}/1`);
+      assert.notStrictEqual(tasks[0]?.chunkId, decisions[0]?.chunkId);
     }),
   );
 

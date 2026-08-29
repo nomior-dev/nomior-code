@@ -44,11 +44,29 @@ describe("planChunks", () => {
     assert.strictEqual(plan.chunks[1]!.speaker, "Olga");
   });
 
-  it("packs multiple short turns into one chunk and clears mixed speakers", () => {
+  it("ends a chunk on a speaker change even when there is room left", () => {
+    // Two turns that would fit together. Merging them would leave the chunk
+    // with no single speaker for its contextual prefix, and the transcript UI
+    // with no turn boundary to render.
     const plan = planChunks([segment("Short one.", "Ivan"), segment("Short two.", "Olga")], 1200);
+    assert.strictEqual(plan.chunks.length, 2);
+    assert.strictEqual(plan.chunks[0]!.speaker, "Ivan");
+    assert.strictEqual(plan.chunks[0]!.text, "Ivan: Short one.");
+    assert.strictEqual(plan.chunks[1]!.speaker, "Olga");
+    assert.strictEqual(plan.chunks[1]!.text, "Olga: Short two.");
+  });
+
+  it("still packs consecutive segments from one speaker", () => {
+    const plan = planChunks([segment("Short one.", "Ivan"), segment("Short two.", "Ivan")], 1200);
+    assert.strictEqual(plan.chunks.length, 1);
+    assert.strictEqual(plan.chunks[0]!.speaker, "Ivan");
+    assert.strictEqual(plan.chunks[0]!.text, "Ivan: Short one.\n\nIvan: Short two.");
+  });
+
+  it("packs speakerless segments together, so documents chunk unchanged", () => {
+    const plan = planChunks([segment("First para."), segment("Second para.")], 1200);
     assert.strictEqual(plan.chunks.length, 1);
     assert.strictEqual(plan.chunks[0]!.speaker, null);
-    assert.strictEqual(plan.chunks[0]!.text, "Ivan: Short one.\n\nOlga: Short two.");
   });
 
   it("splits an oversized single turn at sentence boundaries, keeping the speaker", () => {
@@ -90,9 +108,11 @@ describe("planChunks", () => {
   });
 
   it("takes the chunk end time from the last timestamped piece", () => {
-    // The trailing untimed segment must not drag tsEnd back to tsStart.
+    // The trailing untimed segment must not drag tsEnd back to tsStart. One
+    // speaker throughout, since a change would split the chunk before the
+    // timestamps could interact.
     const untimedTail = planChunks(
-      [segment("first turn", "A", { tsStart: 300, tsEnd: 320 }), segment("untimed aside")],
+      [segment("first turn", "A", { tsStart: 300, tsEnd: 320 }), segment("untimed aside", "A")],
       1200,
     );
     assert.strictEqual(untimedTail.chunks.length, 1);
@@ -103,7 +123,7 @@ describe("planChunks", () => {
     const startOnlyTail = planChunks(
       [
         segment("first turn", "A", { tsStart: 300, tsEnd: 320 }),
-        segment("later turn", "B", { tsStart: 400 }),
+        segment("later turn", "A", { tsStart: 400 }),
       ],
       1200,
     );
