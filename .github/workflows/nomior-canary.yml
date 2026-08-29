@@ -1,0 +1,116 @@
+# Daily canary: merge upstream's newest NIGHTLY tag into a throwaway local
+# branch (never pushed) and typecheck + build. Gives days of advance warning
+# before a breaking upstream change reaches a stable tag (PLAN.md, "Fork
+# discipline"). Failures open/refresh an issue; this workflow gates nothing.
+name: Nomior Canary
+
+on:
+  schedule:
+    - cron: "47 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nomior-canary
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: https://github.com/pingdotgg/t3code.git
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "nomior-canary-bot"
+          git config user.email "canary-bot@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch upstream --prune 'refs/tags/*:refs/tags/*'
+
+      - name: Resolve newest upstream nightly tag
+        id: tag
+        run: |
+          set -euo pipefail
+          tag=$(git for-each-ref 'refs/tags/v*' --sort=-v:refname --format='%(refname:strip=2)' \
+            | grep -m 1 -- '-nightly\.' || true)
+          if [ -z "$tag" ]; then
+            echo "No nightly upstream tag found."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Canary target: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.tag.outputs.tag != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+
+      - name: Setup pnpm via corepack
+        if: steps.tag.outputs.tag != ''
+        run: corepack enable
+
+      - name: Merge nightly tag locally
+        if: steps.tag.outputs.tag != ''
+        id: merge
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          git switch -C "canary/local-$TAG" main
+          if ! git merge --no-ff --no-edit "$TAG"; then
+            conflicted=$(git diff --name-only --diff-filter=U)
+            if [ "$conflicted" = "pnpm-lock.yaml" ]; then
+              sh scripts/nomior/resolve-lockfile.sh
+              git commit --no-edit
+            else
+              echo "Canary merge of $TAG conflicts beyond pnpm-lock.yaml:" >&2
+              printf '%s\n' "$conflicted" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install dependencies
+        if: steps.tag.outputs.tag != ''
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck
+        if: steps.tag.outputs.tag != ''
+        run: pnpm typecheck
+
+      - name: Build
+        if: steps.tag.outputs.tag != ''
+        run: pnpm build
+
+      - name: Report failure as issue
+        if: failure() && steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh label create upstream-canary --description "Upstream nightly canary failures" --color d93f0b || true
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing=$(gh issue list --label upstream-canary --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Canary still failing against \`$TAG\` — [run]($run_url)"
+          else
+            gh issue create \
+              --title "Upstream canary failing against $TAG" \
+              --label upstream-canary \
+              --body "Merge+typecheck+build against upstream nightly \`$TAG\` failed — [run]($run_url). A breaking upstream change is likely on its way to stable; check the run log before the next sync PR."
+          fi

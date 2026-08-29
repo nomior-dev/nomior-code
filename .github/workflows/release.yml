@@ -39,9 +39,14 @@ permissions:
   id-token: none
 
 jobs:
+  # Nomior fork: root jobs are gated to the upstream repo — the fork has no
+  # blacksmith-* runners and never runs this release pipeline (its 3-hourly
+  # schedule fires on the fork too). Downstream jobs require
+  # needs.preflight.result == 'success', so they cascade-skip. Declared in
+  # docs/nomior/FORK-MANIFEST.md.
   check_changes:
     name: Check for changes since last nightly
-    if: github.event_name == 'schedule'
+    if: github.repository == 'pingdotgg/t3code' && github.event_name == 'schedule'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
@@ -80,6 +85,7 @@ jobs:
     name: Preflight
     needs: [check_changes]
     if: |
+      github.repository == 'pingdotgg/t3code' &&
       !failure() && !cancelled() &&
       (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
     runs-on: blacksmith-8vcpu-ubuntu-2404

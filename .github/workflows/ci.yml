@@ -14,8 +14,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Nomior fork: every job is gated to the upstream repo because the fork has
+  # no blacksmith-* runners — ungated, each job queues forever and blocks the
+  # sync flow's "merge once checks are green". The fork's pipeline is
+  # nomior-ci.yml. Declared in docs/nomior/FORK-MANIFEST.md.
   check:
     name: Check
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -64,6 +69,7 @@ jobs:
   # limit stays at the default 4 so peak load per runner is unchanged.
   test:
     name: Test
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -94,6 +100,7 @@ jobs:
   # isolation that flag buys is preserved exactly.
   test_server:
     name: Test Server ${{ matrix.shard }}
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     strategy:
@@ -161,6 +168,7 @@ jobs:
   # for checks that take under 3s, on the critical path of every PR.
   rust:
     name: Rust
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -189,6 +197,7 @@ jobs:
   # the diff cannot be resolved, the lint runs.
   mobile_native_changes:
     name: Mobile Native Changes
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
@@ -266,7 +275,7 @@ jobs:
     needs: mobile_native_changes
     # Skip only on an explicit "no": a gate job that failed or errored leaves the
     # output empty, and that must run the lint rather than silently skip it.
-    if: ${{ !cancelled() && needs.mobile_native_changes.outputs.changed != 'false' }}
+    if: ${{ github.repository == 'pingdotgg/t3code' && !cancelled() && needs.mobile_native_changes.outputs.changed != 'false' }}
     runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 10
     steps:
@@ -295,6 +304,7 @@ jobs:
 
   release_smoke:
     name: Release Smoke
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:

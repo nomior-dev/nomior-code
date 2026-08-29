@@ -32,6 +32,10 @@ concurrency:
 jobs:
   fingerprint:
     name: Native fingerprint diff
+    # Nomior fork: upstream-repo-only — the fork has no blacksmith-* runners,
+    # and this fires on every sync PR (its paths cover pnpm-lock.yaml and
+    # packages/**). Declared in docs/nomior/FORK-MANIFEST.md.
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read

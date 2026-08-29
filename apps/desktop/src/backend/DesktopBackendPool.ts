@@ -92,6 +92,7 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as FileSystem from "effect/FileSystem";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { NOMIOR_PRODUCT_NAME } from "@t3tools/shared/nomiorBrand";
 
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
@@ -243,7 +244,7 @@ export const layer = Layer.effect(
           );
           yield* electronDialog.showErrorBox(
             "WSL backend is still unavailable",
-            `${reason}\n\nT3 Code will use the Windows backend for this launch and retry WSL the next time the app starts.`,
+            `${reason}\n\n${NOMIOR_PRODUCT_NAME} will use the Windows backend for this launch and retry WSL the next time the app starts.`,
           );
           yield* appSettings.applyWslWindowsFallbackInMemory;
           return true;
@@ -254,7 +255,7 @@ export const layer = Layer.effect(
         });
         yield* electronDialog.showErrorBox(
           "WSL backend couldn't start",
-          `${reason}\n\nFalling back to the Windows backend so T3 Code can open. Re-enable the WSL backend from Settings > Connections once the WSL distro is fixed.`,
+          `${reason}\n\nFalling back to the Windows backend so ${NOMIOR_PRODUCT_NAME} can open. Re-enable the WSL backend from Settings > Connections once the WSL distro is fixed.`,
         );
         // Fully disable the WSL backend — both flags, matching the "Switch to
         // Windows" recovery path — so the manager's next restart re-resolves the
