@@ -18,6 +18,7 @@ import type {
   ContextSnippet,
   MeetingDetail,
   MeetingItem,
+  ProjectOption,
   ProviderInstanceItem,
   ReviewJob,
   ReviewJobDetail,
@@ -38,7 +39,14 @@ export interface NomiorDataPort {
   getReviewJob(jobId: string): Promise<ReviewJobDetail>;
   requestManualReview(jobId: string): Promise<void>;
 
-  searchContext(query: string): Promise<readonly ContextSnippet[]>;
+  /** Every project this environment still has, newest activity first. */
+  listProjects(): Promise<readonly ProjectOption[]>;
+  /**
+   * Retrieval is scope-first and has no "everything" search, so the caller
+   * names the project. A page that quietly searched every project at once
+   * would answer one project's question with another's material.
+   */
+  searchContext(query: string, projectId: string): Promise<readonly ContextSnippet[]>;
 
   listCalendarAccounts(): Promise<readonly CalendarAccount[]>;
   /**

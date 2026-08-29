@@ -24,8 +24,10 @@ import {
   seedCalendarEvents,
   seedGoogleAccounts,
   seedMeetings,
+  seedCapsules,
   seedProviderInstances,
   seedReviewJobs,
+  type SeedCapsuleId,
   type SeedFindingSeverity,
   type SeedMeeting,
 } from "./scenario.ts";
@@ -178,11 +180,35 @@ export const generatedCalendarEvents = (): ReadonlyArray<GeneratedCalendarEvent>
 };
 
 // ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+export interface GeneratedProject {
+  readonly id: string;
+  readonly title: string;
+}
+
+/**
+ * The context page's picker. A capsule with no code has no project, so it is
+ * not an option — the same reason the seeder gives its sources no project
+ * scope.
+ */
+export const generatedProjects = (): ReadonlyArray<GeneratedProject> =>
+  seedCapsules.flatMap((capsule) =>
+    capsule.projectId === null ? [] : [{ id: capsule.projectId, title: capsule.label }],
+  );
+
+const projectOf = (capsule: SeedCapsuleId): string | null =>
+  seedCapsules.find((entry) => entry.capsuleId === capsule)?.projectId ?? null;
+
+// ---------------------------------------------------------------------------
 // Context & memory
 // ---------------------------------------------------------------------------
 
 export interface GeneratedContextSnippet {
   readonly id: string;
+  /** Which project's search returns this. Retrieval is scope-first. */
+  readonly projectId: string;
   readonly sourceTitle: string;
   readonly sourceKind: "meeting" | "decision" | "memory" | "document" | "mail" | "event";
   readonly sourceDate: string;
@@ -194,22 +220,32 @@ export interface GeneratedContextSnippet {
  * Search results the panel can show without a broker: one snippet per seeded
  * decision, plus the blocking findings of the reviews that carry them. Scores
  * descend by rank — the fixture ranks, it does not measure.
+ *
+ * Sources in a project-less capsule are absent, as they are on a real server:
+ * no project scope, no project-scoped hit.
  */
 export const generatedContextSnippets = (): ReadonlyArray<GeneratedContextSnippet> => {
-  const fromMeetings = seedMeetings.flatMap((meeting) =>
-    meeting.decisions.map((decision, index) => ({
+  const fromMeetings = seedMeetings.flatMap((meeting) => {
+    const projectId = projectOf(meeting.capsule);
+    if (projectId === null) return [];
+    return meeting.decisions.map((decision, index) => ({
       id: `ctx-${meeting.meetingId}-d${index}`,
+      projectId,
       sourceTitle: meeting.title,
       sourceKind: "meeting" as const,
       sourceDate: meeting.startsAt.slice(0, 10),
       excerpt: `Decision: ${decision.statement}`,
-    })),
-  );
+    }));
+  });
+  // Every seeded review is ingested into the work capsule's project, the way
+  // `reviewSessionSource` scopes it.
+  const reviewProject = projectOf("nomior-code") ?? "";
   const fromReviews = seedReviewJobs.flatMap((job) =>
     job.findings
       .filter((finding) => finding.severity === "critical")
       .map((finding, index) => ({
         id: `ctx-${job.jobId}-f${index}`,
+        projectId: reviewProject,
         sourceTitle: `Review #${job.pullRequestNumber} — ${job.pullRequestTitle}`,
         sourceKind: "memory" as const,
         sourceDate: job.updatedAt.slice(0, 10),
@@ -334,6 +370,7 @@ const BANNER = `/**
 
 /** The whole generated payload, before serialization. */
 export const webFixtureData = () => ({
+  projects: generatedProjects(),
   reviewJobs: generatedReviewJobs(),
   calendarAccounts: generatedCalendarAccounts(),
   calendarEvents: generatedCalendarEvents(),

@@ -16,7 +16,7 @@
  */
 import * as Schema from "effect/Schema";
 
-import { IsoDateTime, NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { IsoDateTime, NonNegativeInt, ProjectId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 // ---------------------------------------------------------------------------
 // Review board
@@ -112,6 +112,25 @@ export const NomiorReviewRequestManualInput = Schema.Struct({
 export type NomiorReviewRequestManualInput = typeof NomiorReviewRequestManualInput.Type;
 
 // ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/**
+ * A project, as the Nomior surfaces need it: an id to scope by and a name to
+ * show. Everything else about a project belongs to the project surfaces.
+ */
+export const NomiorProject = Schema.Struct({
+  id: ProjectId,
+  title: TrimmedNonEmptyString,
+});
+export type NomiorProject = typeof NomiorProject.Type;
+
+export const NomiorProjectsListResult = Schema.Struct({
+  projects: Schema.Array(NomiorProject),
+});
+export type NomiorProjectsListResult = typeof NomiorProjectsListResult.Type;
+
+// ---------------------------------------------------------------------------
 // Context & memory
 // ---------------------------------------------------------------------------
 
@@ -146,6 +165,12 @@ export type NomiorContextSnippet = typeof NomiorContextSnippet.Type;
 
 export const NomiorContextSearchInput = Schema.Struct({
   query: TrimmedNonEmptyString.check(Schema.isMaxLength(512)),
+  /**
+   * Which project's context to search. Required: retrieval is scope-first and
+   * has no "everything" search, and a page that quietly searched every project
+   * at once could answer one project's question with another's material.
+   */
+  projectId: ProjectId,
 });
 export type NomiorContextSearchInput = typeof NomiorContextSearchInput.Type;
 

@@ -8,7 +8,7 @@
  *
  * @module nomior/rpc/wsHandlers
  */
-import { WS_METHODS, type EnvironmentAuthorizationError } from "@t3tools/contracts";
+import { WS_METHODS, type EnvironmentAuthorizationError, type ProjectId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 
 import type { ServerProvider } from "@t3tools/contracts";
@@ -21,6 +21,7 @@ import { GoogleTokenVault } from "../connectors/google/GoogleTokenVault.ts";
 import { GoogleTokenPort } from "../connectors/google/GooglePorts.ts";
 import { ContextRetrievalPort } from "../context/RetrievalPort.ts";
 import { MeetingStore } from "../meetings/MeetingStore.ts";
+import { NomiorProjects } from "../projects/NomiorProjects.ts";
 import { RateLimitObserver } from "../scheduler/RateLimitObserver.ts";
 import { SchedulerPreferences } from "../scheduler/SchedulerPreferences.ts";
 import { ReviewJobStore } from "../review/ReviewJobStore.ts";
@@ -80,8 +81,13 @@ export const makeNomiorPanelHandlers = ({
       }),
     ),
 
-  [WS_METHODS.nomiorContextSearch]: (input: { readonly query: string }) =>
-    observeRpcEffect(WS_METHODS.nomiorContextSearch, contextHandlers.searchContext(input)),
+  [WS_METHODS.nomiorProjectsList]: () =>
+    observeRpcEffect(WS_METHODS.nomiorProjectsList, contextHandlers.listProjects()),
+
+  [WS_METHODS.nomiorContextSearch]: (input: {
+    readonly query: string;
+    readonly projectId: ProjectId;
+  }) => observeRpcEffect(WS_METHODS.nomiorContextSearch, contextHandlers.searchContext(input)),
 
   [WS_METHODS.nomiorCalendarAccountsList]: () =>
     observeRpcEffect(
@@ -240,6 +246,7 @@ export type NomiorPanelHandlerServices =
   | GoogleTokenPort
   | GoogleTokenVault
   | MeetingStore
+  | NomiorProjects
   | RateLimitObserver
   | ReviewJobStore
   | SchedulerPreferences;

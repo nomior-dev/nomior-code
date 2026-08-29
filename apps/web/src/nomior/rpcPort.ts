@@ -20,6 +20,7 @@ import type {
   NomiorMeetingDetail,
   NomiorMeetingGetInput,
   NomiorMeetingsListResult,
+  NomiorProjectsListResult,
   NomiorConnectorAccountInput,
   NomiorConnectorConnectInput,
   NomiorConnectorConnectResult,
@@ -33,6 +34,7 @@ import type {
   NomiorSchedulerState,
   NomiorSetAdvisoryModeInput,
 } from "@t3tools/contracts";
+import { ProjectId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/unstable/reactivity";
 
@@ -45,6 +47,7 @@ export interface NomiorCommandRunner {
   readonly listReviewJobs: () => Settled<NomiorReviewJobsListResult>;
   readonly getReviewJob: (input: NomiorReviewJobGetInput) => Settled<NomiorReviewJobDetail>;
   readonly requestManualReview: (input: NomiorReviewRequestManualInput) => Settled<void>;
+  readonly listProjects: () => Settled<NomiorProjectsListResult>;
   readonly searchContext: (input: NomiorContextSearchInput) => Settled<NomiorContextSearchResult>;
   readonly listMeetings: () => Settled<NomiorMeetingsListResult>;
   readonly getMeeting: (input: NomiorMeetingGetInput) => Settled<NomiorMeetingDetail>;
@@ -96,7 +99,9 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
       await value(runner.requestManualReview({ jobId }));
     },
 
-    searchContext: async (query) => (await value(runner.searchContext({ query }))).snippets,
+    listProjects: async () => (await value(runner.listProjects())).projects,
+    searchContext: async (query, projectId) =>
+      (await value(runner.searchContext({ query, projectId: ProjectId.make(projectId) }))).snippets,
     listMeetings: async () => (await value(runner.listMeetings())).meetings,
     getMeeting: (meetingId) => value(runner.getMeeting({ meetingId })),
     listConnectors: () => value(runner.listConnectors()),
@@ -144,6 +149,7 @@ export function whileConnecting(port: NomiorDataPort): NomiorDataPort {
   return {
     ...port,
     listReviewJobs: never,
+    listProjects: never,
     searchContext: never,
     listMeetings: never,
     getMeeting: never,

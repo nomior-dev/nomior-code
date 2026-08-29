@@ -25,6 +25,7 @@ export function createNomiorCommandRunner(
     listReviewJobs: () => run(nomiorEnvironment.listReviewJobs, undefined),
     getReviewJob: (input) => run(nomiorEnvironment.getReviewJob, input),
     requestManualReview: (input) => run(nomiorEnvironment.requestManualReview, input),
+    listProjects: () => run(nomiorEnvironment.listProjects, undefined),
     searchContext: (input) => run(nomiorEnvironment.searchContext, input),
     listMeetings: () => run(nomiorEnvironment.listMeetings, {}),
     getMeeting: (input) => run(nomiorEnvironment.getMeeting, input),

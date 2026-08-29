@@ -25,6 +25,7 @@ const baseRunner: NomiorCommandRunner = {
   listReviewJobs: unstubbed("listReviewJobs"),
   getReviewJob: unstubbed("getReviewJob"),
   requestManualReview: unstubbed("requestManualReview"),
+  listProjects: unstubbed("listProjects"),
   searchContext: unstubbed("searchContext"),
   listMeetings: unstubbed("listMeetings"),
   getMeeting: unstubbed("getMeeting"),
@@ -86,8 +87,8 @@ describe("RPC Nomior port reads", () => {
       },
     });
 
-    await expect(port.searchContext("review gate")).resolves.toEqual([snippet]);
-    expect(inputs).toEqual([{ query: "review gate" }]);
+    await expect(port.searchContext("review gate", "proj-1")).resolves.toEqual([snippet]);
+    expect(inputs).toEqual([{ query: "review gate", projectId: "proj-1" }]);
   });
 
   it("passes the calendar window through and unwraps the events envelope", async () => {
@@ -243,7 +244,7 @@ describe("whileConnecting", () => {
 
     const reads = [
       port.listReviewJobs(),
-      port.searchContext("anything"),
+      port.searchContext("anything", "proj-1"),
       port.listCalendarAccounts(),
       port.listCalendarEvents("2026-08-24T00:00:00.000Z", "2026-08-31T00:00:00.000Z"),
       port.listInstances(),

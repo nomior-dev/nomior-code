@@ -131,7 +131,8 @@ export const NomiorConnectorRpcLive = Layer.mergeAll(
 
 /**
  * Everything the `/nomior` panels read over RPC, in one layer for `ws.ts` to
- * provide. Requires `SqlClient` and `ServerSecretStore`.
+ * provide. Requires `SqlClient`, `ServerSecretStore` and
+ * `RepositoryIdentityResolver`.
  *
  * Deliberately NOT `NomiorReviewPortsLive`: the board reads and annotates jobs,
  * it never runs a leg or publishes a verdict, so it needs `ReviewJobStore`
@@ -145,6 +146,7 @@ export const NomiorConnectorRpcLive = Layer.mergeAll(
  * `MeetingStore` reads sources a previous sync already ingested.
  */
 export const NomiorPanelRpcLive = Layer.mergeAll(
+  NomiorProjectsLive,
   // The connector-ingest layer rather than the bare context one: a manual sync
   // writes through `ConnectorContextIngest`, and this composition keeps it on
   // the same broker the panels read from instead of forking a second one.

@@ -5,35 +5,24 @@
  * single spread. Every handler here converts its service's typed failures into
  * the one wire error the panels understand.
  *
- * Scope, and why this differs from the MCP toolkit: the retrieval port takes a
- * required scope and has no "everything" search. The MCP toolkit resolves that
- * scope from the calling thread and fails closed, which is right for an agent —
- * it must not read across a boundary its thread was not granted. An RPC caller
- * is the authenticated owner of this environment, browsing their own data, so
- * that rule does not transfer: this searches every scope the broker holds and
- * merges the results. The MCP gate is untouched.
+ * Scope: the retrieval port takes a required scope and has no "everything"
+ * search, so the panel picks a project and this searches that project. The MCP
+ * toolkit resolves the same scope from the calling thread instead; that gate is
+ * untouched.
  *
  * @module nomior/rpc/contextHandlers
  */
-import { NomiorRequestError, type NomiorContextSnippet } from "@t3tools/contracts";
+import { NomiorRequestError, type NomiorContextSnippet, type ProjectId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { parseCitation } from "../context/Retrieval.ts";
 import { formatContextScope } from "../context/RetrievalPortLive.ts";
 import { redactSecrets } from "../context/redactSecrets.ts";
-import type { NomiorScopeKind } from "../context/Model.ts";
+import { NomiorProjects } from "../projects/NomiorProjects.ts";
 import * as RetrievalPort from "../context/RetrievalPort.ts";
 
-/**
- * Candidates ranked per scope before merging. Generous relative to what the
- * panel shows, because the merge drops duplicates across overlapping scopes
- * (the same source is commonly both `project:x` and `capsule:x`).
- */
-const PER_SCOPE_LIMIT = 20;
-
 /** What the panel renders for one query. */
-const MERGED_LIMIT = 12;
+const SEARCH_LIMIT = 12;
 
 /** A snippet excerpt longer than this is padding, not evidence. */
 const EXCERPT_MAX_CHARS = 480;
@@ -78,47 +67,25 @@ const unavailable = (cause: unknown): NomiorRequestError =>
     retryable: true,
   });
 
-interface ScopeRow {
-  readonly scope_kind: string;
-  readonly scope_value: string;
-}
-
-/**
- * Every scope the broker holds. A source with no scope row is unreachable by
- * search in any case, so an empty list means an empty result, not an error.
- */
-const listScopes = Effect.fn("nomior.rpc.listScopes")(function* () {
-  const sql = yield* SqlClient.SqlClient;
-  const rows = yield* sql<ScopeRow>`
-    SELECT DISTINCT scope_kind, scope_value FROM nomior_source_scopes
-  `;
-  return rows.map((row) =>
-    formatContextScope({ kind: row.scope_kind as NomiorScopeKind, value: row.scope_value }),
-  );
+/** The project picker's options: every project this environment still has. */
+export const listProjects = Effect.fn("nomior.rpc.listProjects")(function* () {
+  const projects = yield* NomiorProjects;
+  const rows = yield* projects.list.pipe(Effect.mapError(unavailable));
+  return { projects: rows.map((project) => ({ id: project.projectId, title: project.title })) };
 });
 
 export const searchContext = Effect.fn("nomior.rpc.searchContext")(function* (input: {
   readonly query: string;
+  readonly projectId: ProjectId;
 }) {
   const port = yield* RetrievalPort.ContextRetrievalPort;
-  const scopes = yield* listScopes().pipe(Effect.mapError(unavailable));
-
-  // Highest score wins a duplicate: the same source can be reachable through
-  // several scopes, and the panel must show it once.
-  const bySnippetId = new Map<string, NomiorContextSnippet>();
-  for (const scope of scopes) {
-    const response = yield* port
-      .search({ query: input.query, scope, limit: PER_SCOPE_LIMIT, responseFormat: "concise" })
-      .pipe(Effect.mapError(unavailable));
-    for (const snippet of response.snippets) {
-      const wire = toWireSnippet(snippet);
-      const seen = bySnippetId.get(wire.id);
-      if (seen === undefined || wire.score > seen.score) bySnippetId.set(wire.id, wire);
-    }
-  }
-
-  const snippets = [...bySnippetId.values()]
-    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
-    .slice(0, MERGED_LIMIT);
-  return { snippets };
+  const response = yield* port
+    .search({
+      query: input.query,
+      scope: formatContextScope({ kind: "project", value: input.projectId }),
+      limit: SEARCH_LIMIT,
+      responseFormat: "concise",
+    })
+    .pipe(Effect.mapError(unavailable));
+  return { snippets: response.snippets.map(toWireSnippet) };
 });

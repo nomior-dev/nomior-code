@@ -27,6 +27,10 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:review-request-manual",
       tag: WS_METHODS.nomiorReviewRequestManual,
     }),
+    listProjects: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:projects-list",
+      tag: WS_METHODS.nomiorProjectsList,
+    }),
     searchContext: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:context-search",
       tag: WS_METHODS.nomiorContextSearch,

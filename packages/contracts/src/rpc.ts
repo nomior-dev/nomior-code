@@ -24,6 +24,7 @@ import {
   NomiorCalendarEventsListResult,
   NomiorContextSearchInput,
   NomiorContextSearchResult,
+  NomiorProjectsListResult,
   NomiorInstanceSetPinnedInput,
   NomiorInstancesListResult,
   NomiorMeetingDetail,
@@ -362,6 +363,7 @@ export const WS_METHODS = {
   nomiorReviewJobsList: "nomior.reviewJobs.list",
   nomiorReviewJobGet: "nomior.reviewJobs.get",
   nomiorReviewRequestManual: "nomior.reviewJobs.requestManual",
+  nomiorProjectsList: "nomior.projects.list",
   nomiorContextSearch: "nomior.context.search",
   nomiorCalendarAccountsList: "nomior.calendar.accountsList",
   nomiorCalendarEventsList: "nomior.calendar.eventsList",
@@ -1082,6 +1084,11 @@ export const WsNomiorReviewRequestManualRpc = Rpc.make(WS_METHODS.nomiorReviewRe
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
 });
 
+export const WsNomiorProjectsListRpc = Rpc.make(WS_METHODS.nomiorProjectsList, {
+  success: NomiorProjectsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
 export const WsNomiorContextSearchRpc = Rpc.make(WS_METHODS.nomiorContextSearch, {
   payload: NomiorContextSearchInput,
   success: NomiorContextSearchResult,
@@ -1267,6 +1274,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsNomiorReviewJobsListRpc,
   WsNomiorReviewJobGetRpc,
   WsNomiorReviewRequestManualRpc,
+  WsNomiorProjectsListRpc,
   WsNomiorContextSearchRpc,
   WsNomiorCalendarAccountsListRpc,
   WsNomiorCalendarEventsListRpc,

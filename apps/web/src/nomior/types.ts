@@ -65,6 +65,12 @@ export interface ReviewJobDetail extends ReviewJob {
 /** Mirrors the retrieval port's source kinds; the engine owns this vocabulary. */
 export type ContextSourceKind = "meeting" | "decision" | "memory" | "document" | "mail" | "event";
 
+/** One option in the context page's project picker. */
+export interface ProjectOption {
+  readonly id: string;
+  readonly title: string;
+}
+
 export interface ContextSnippet {
   readonly id: string;
   readonly sourceTitle: string;

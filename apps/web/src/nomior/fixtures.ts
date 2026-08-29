@@ -74,16 +74,18 @@ function reviewJobs(now: Date): ReviewJobDetail[] {
   }));
 }
 
-const contextSnippets: readonly ContextSnippet[] = generatedFixtures.contextSnippets.map(
-  (snippet) => ({
+/** Kept keyed by project: search is scope-first, so the filter is not optional. */
+const contextSnippets = generatedFixtures.contextSnippets.map((snippet) => ({
+  projectId: snippet.projectId,
+  snippet: {
     id: snippet.id,
     sourceTitle: snippet.sourceTitle,
     sourceKind: snippet.sourceKind,
     sourceDate: snippet.sourceDate,
     excerpt: snippet.excerpt,
     score: snippet.score,
-  }),
-);
+  } satisfies ContextSnippet,
+}));
 
 const calendarAccounts: readonly CalendarAccount[] = generatedFixtures.calendarAccounts.map(
   (account) => ({
@@ -217,12 +219,17 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
       return Promise.resolve();
     },
 
-    searchContext: (query) => {
+    listProjects: () => Promise.resolve(generatedFixtures.projects),
+    searchContext: (query, projectId) => {
       const needle = query.trim().toLowerCase();
       if (needle.length === 0) return Promise.resolve([]);
-      const matches = contextSnippets.filter((snippet) =>
-        `${snippet.sourceTitle} ${snippet.excerpt}`.toLowerCase().includes(needle),
-      );
+      const matches = contextSnippets
+        .filter(
+          (entry) =>
+            entry.projectId === projectId &&
+            `${entry.snippet.sourceTitle} ${entry.snippet.excerpt}`.toLowerCase().includes(needle),
+        )
+        .map((entry) => entry.snippet);
       return Promise.resolve(matches.toSorted((left, right) => right.score - left.score));
     },
 

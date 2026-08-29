@@ -14,6 +14,12 @@
  */
 
 export const generatedFixtures = {
+  projects: [
+    {
+      id: "nomior-code",
+      title: "Nomior Code",
+    },
+  ],
   reviewJobs: [
     {
       id: "rev-101",
@@ -327,6 +333,7 @@ export const generatedFixtures = {
   contextSnippets: [
     {
       id: "ctx-meet-standup-0824-d0",
+      projectId: "nomior-code",
       sourceTitle: "Daily standup",
       sourceKind: "meeting",
       sourceDate: "2026-08-24",
@@ -335,6 +342,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-standup-0825-d0",
+      projectId: "nomior-code",
       sourceTitle: "Daily standup",
       sourceKind: "meeting",
       sourceDate: "2026-08-25",
@@ -343,6 +351,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-standup-0827-d0",
+      projectId: "nomior-code",
       sourceTitle: "Ежедневный статус",
       sourceKind: "meeting",
       sourceDate: "2026-08-27",
@@ -351,6 +360,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-review-engine-0825-d0",
+      projectId: "nomior-code",
       sourceTitle: "Review engine deep dive",
       sourceKind: "meeting",
       sourceDate: "2026-08-25",
@@ -359,6 +369,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-review-engine-0825-d1",
+      projectId: "nomior-code",
       sourceTitle: "Review engine deep dive",
       sourceKind: "meeting",
       sourceDate: "2026-08-25",
@@ -367,6 +378,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-recorder-0826-d0",
+      projectId: "nomior-code",
       sourceTitle: "Recorder pipeline",
       sourceKind: "meeting",
       sourceDate: "2026-08-26",
@@ -375,6 +387,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-friday-0821-d0",
+      projectId: "nomior-code",
       sourceTitle: "Friday review",
       sourceKind: "meeting",
       sourceDate: "2026-08-21",
@@ -383,6 +396,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-friday-0828-d0",
+      projectId: "nomior-code",
       sourceTitle: "Friday review",
       sourceKind: "meeting",
       sourceDate: "2026-08-28",
@@ -391,6 +405,7 @@ export const generatedFixtures = {
     },
     {
       id: "ctx-meet-friday-0828-d1",
+      projectId: "nomior-code",
       sourceTitle: "Friday review",
       sourceKind: "meeting",
       sourceDate: "2026-08-28",
@@ -398,36 +413,31 @@ export const generatedFixtures = {
       score: 0.63,
     },
     {
-      id: "ctx-meet-ep-master-0828-d0",
-      sourceTitle: "Mix review — EP master",
-      sourceKind: "meeting",
-      sourceDate: "2026-08-28",
-      excerpt: "Decision: Ship the EP with the re-limited quieter master and keep the ISRC codes already registered with the distributor.",
-      score: 0.59,
-    },
-    {
       id: "ctx-rev-104-f0",
+      projectId: "nomior-code",
       sourceTitle: "Review #96 — feat(catalog): ISRC dedupe pass over delivery feeds",
       sourceKind: "memory",
       sourceDate: "2026-08-29",
       excerpt: "Finding (critical): The dedupe pass deletes delivery rows before the new ISRC mapping commits; a failed commit loses catalogue rows with no way back. — apps/server/src/catalog/isrcDedupe.ts:214",
-      score: 0.55,
+      score: 0.59,
     },
     {
       id: "ctx-rev-106-f0",
+      projectId: "nomior-code",
       sourceTitle: "Review #379 — feat(agents): unattended portfolio rebalancer",
       sourceKind: "memory",
       sourceDate: "2026-08-28",
       excerpt: "Finding (critical): Live orders are placed when dryRun is unset: the flag defaults to undefined, which is falsy, not to true. — apps/server/src/agents/rebalancer.ts:132",
-      score: 0.51,
+      score: 0.55,
     },
     {
       id: "ctx-rev-106-f1",
+      projectId: "nomior-code",
       sourceTitle: "Review #379 — feat(agents): unattended portfolio rebalancer",
       sourceKind: "memory",
       sourceDate: "2026-08-28",
       excerpt: "Finding (critical): Broker credentials are read from the environment and written into the retry log alongside the request payload. — apps/server/src/agents/rebalancer.ts:288",
-      score: 0.47,
+      score: 0.51,
     },
   ],
   instances: [

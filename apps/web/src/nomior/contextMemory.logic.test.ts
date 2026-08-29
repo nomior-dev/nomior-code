@@ -27,7 +27,8 @@ describe("formatSourceDate", () => {
 describe("fixture port — context search", () => {
   it("returns cited snippets ranked by score for a matching query", async () => {
     const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
-    const results = await port.searchContext("scheduler");
+    const [project] = await port.listProjects();
+    const results = await port.searchContext("scheduler", project?.id ?? "");
     expect(results.length).toBeGreaterThan(0);
     const scores = results.map((entry) => entry.score);
     expect(scores).toEqual([...scores].toSorted((left, right) => right - left));
@@ -39,6 +40,12 @@ describe("fixture port — context search", () => {
 
   it("returns nothing for a blank query", async () => {
     const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
-    expect(await port.searchContext("   ")).toEqual([]);
+    const [project] = await port.listProjects();
+    expect(await port.searchContext("   ", project?.id ?? "")).toEqual([]);
+  });
+
+  it("answers with one project's material only", async () => {
+    const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
+    expect(await port.searchContext("scheduler", "some-other-project")).toEqual([]);
   });
 });

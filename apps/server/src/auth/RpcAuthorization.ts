@@ -135,6 +135,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.nomiorReviewJobsList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorReviewJobGet]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorReviewRequestManual]: AuthReviewWriteScope,
+  [WS_METHODS.nomiorProjectsList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorContextSearch]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorCalendarAccountsList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorCalendarEventsList]: AuthOrchestrationReadScope,

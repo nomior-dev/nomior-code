@@ -4,12 +4,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Card, CardPanel } from "../components/ui/card";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../components/ui/input-group";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 import { formatSourceDate, sourceKindLabel } from "./contextMemory.logic";
 import { fixtureNomiorPort } from "./fixtures";
 import { useNomiorPort } from "./port";
 import { PortErrorState } from "./PortErrorState";
-import type { ContextSnippet } from "./types";
+import type { ContextSnippet, ProjectOption } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -37,6 +44,8 @@ function SnippetCard({ snippet }: { snippet: ContextSnippet }) {
 export function ContextMemoryPanel() {
   const port = useNomiorPort(fixtureNomiorPort);
 
+  const [projects, setProjects] = useState<readonly ProjectOption[] | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<readonly ContextSnippet[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -45,8 +54,30 @@ export function ContextMemoryPanel() {
   const [searchGeneration, setSearchGeneration] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    port.listProjects().then(
+      (loaded) => {
+        if (cancelled) return;
+        setProjects(loaded);
+        setProjectId((current) =>
+          current !== null && loaded.some((project) => project.id === current)
+            ? current
+            : (loaded[0]?.id ?? null),
+        );
+      },
+      () => {
+        if (cancelled) return;
+        setProjects([]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [port]);
+
+  useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length === 0) {
+    if (trimmed.length === 0 || projectId === null) {
       setResults(null);
       setIsSearching(false);
       setSearchError(null);
@@ -56,7 +87,7 @@ export function ContextMemoryPanel() {
     setSearchError(null);
     let cancelled = false;
     const timer = setTimeout(() => {
-      port.searchContext(trimmed).then(
+      port.searchContext(trimmed, projectId).then(
         (snippets) => {
           if (cancelled) return;
           setResults(snippets);
@@ -73,17 +104,39 @@ export function ContextMemoryPanel() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [port, query, searchGeneration]);
+  }, [port, projectId, query, searchGeneration]);
 
   const retrySearch = useCallback(() => setSearchGeneration((value) => value + 1), []);
 
   return (
     <section aria-label="Context search" className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-sm font-medium">Search context</h2>
-        <p className="text-sm text-muted-foreground">
-          Meetings, documents, reviews and memories, answered with cited evidence.
-        </p>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-medium">Search context</h2>
+          <p className="text-sm text-muted-foreground">
+            Meetings, documents, reviews and memories, answered with cited evidence.
+          </p>
+        </div>
+        {projects !== null && projects.length > 0 ? (
+          <Select
+            items={projects.map((project) => ({ label: project.title, value: project.id }))}
+            onValueChange={(next: string | null) => {
+              if (next !== null) setProjectId(next);
+            }}
+            value={projectId}
+          >
+            <SelectTrigger aria-label="Project" size="xs" variant="ghost">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopup>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        ) : null}
       </div>
       <InputGroup>
         <InputGroupAddon>
@@ -92,12 +145,16 @@ export function ContextMemoryPanel() {
         <InputGroupInput
           aria-label="Search context"
           onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="Search your project's context..."
+          placeholder="Search this project's context..."
           type="search"
           value={query}
         />
       </InputGroup>
-      {isSearching ? (
+      {projects !== null && projects.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No projects yet. Context is searched one project at a time.
+        </p>
+      ) : isSearching ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-24 w-full rounded-2xl" />
           <Skeleton className="h-24 w-full rounded-2xl" />
