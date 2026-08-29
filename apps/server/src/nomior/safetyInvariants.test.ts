@@ -81,9 +81,19 @@ const allSources = Effect.gen(function* () {
  * in upstream's secret store — so these patterns name provider credentials
  * specifically rather than banning the word "token".
  */
+const PROVIDER_HOME_PATTERN = /CLAUDE_CONFIG_DIR|CODEX_HOME|GROK_HOME/;
+
+/**
+ * The one module allowed to name a provider home, because the memories the
+ * user already wrote live inside one. What it may reach in there is pinned by
+ * its own invariant below: `projects/<slug>/memory`, read-only. Every other
+ * pattern in the list still applies to it, credential files included.
+ */
+const PROVIDER_HOME_READERS = new Set(["./memory/ClaudeMemories.ts"]);
+
 const PROVIDER_CREDENTIAL_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/keytar|keychain/i, "OS keychain access"],
-  [/CLAUDE_CONFIG_DIR|CODEX_HOME|GROK_HOME/, "a provider home directory"],
+  [PROVIDER_HOME_PATTERN, "a provider home directory"],
   [/\.credentials\.json|claude\.json|auth\.json/, "a provider credential file"],
   [/getUsageSummary|usageScan|usagePoll/i, "usage-endpoint polling"],
   [/api\.anthropic\.com|chatgpt\.com|api\.openai\.com|console\.anthropic\.com/i, "a provider API"],
@@ -120,6 +130,7 @@ describe("nomior safety invariants (whole tree)", () => {
       for (const file of yield* allSources) {
         if (file.isTest || demoCopy.has(file.label)) continue;
         for (const [pattern, what] of PROVIDER_CREDENTIAL_PATTERNS) {
+          if (pattern === PROVIDER_HOME_PATTERN && PROVIDER_HOME_READERS.has(file.label)) continue;
           assert.notMatch(
             file.code,
             pattern,
@@ -142,6 +153,34 @@ describe("nomior safety invariants (whole tree)", () => {
             `${file.label} names host ${host}; every outbound destination needs an explicit review`,
           );
         }
+      }
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  /**
+   * The exemption above is only as narrow as this test makes it. A provider
+   * home holds the credentials the fork must never touch, so the memory import
+   * may reach exactly one subtree of one and may only read.
+   */
+  it.effect("the Claude memory import reads memory notes and nothing else", () =>
+    Effect.gen(function* () {
+      const files = yield* allSources;
+      const file = files.find((entry) => entry.label === "./memory/ClaudeMemories.ts");
+      assert.isDefined(file, "the exempted module must exist");
+
+      const joins = [...file.code.matchAll(/path\.join\(root[^)]*\)/g)].map((match) => match[0]);
+      assert.deepStrictEqual(
+        joins,
+        ['path.join(root, "projects", slug, "memory")'],
+        "the import may address only a project's memory directory inside a provider home",
+      );
+      // One-way by construction: every filesystem call it makes is a read.
+      for (const match of file.code.matchAll(/\bfs\.([A-Za-z]+)/g)) {
+        assert.include(
+          ["readDirectory", "readFileString", "stat"],
+          match[1],
+          `the import calls fs.${match[1]}; a provider home is read, never written`,
+        );
       }
     }).pipe(Effect.provide(NodeServices.layer)),
   );

@@ -29,6 +29,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
+import { ClaudeMemories } from "../memory/ClaudeMemories.ts";
 import { MemoryWriter } from "../memory/MemoryWriter.ts";
 import { NomiorScopeKind, type NomiorScope, type NomiorSourceKind } from "./Model.ts";
 import { ContextRetrieval } from "./Retrieval.ts";
@@ -159,6 +160,36 @@ export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const retrieval = yield* ContextRetrieval;
   const memories = yield* MemoryWriter;
+  const claudeMemories = yield* ClaudeMemories;
+
+  /**
+   * Pull in whatever Claude Code has written for this project before answering.
+   *
+   * On the read path rather than in a daemon because that is the only place
+   * that knows a project is being asked about, and the import is a stat per
+   * note when nothing changed. Failures are swallowed for the same reason the
+   * import is silent when there is nothing to import: a search must answer
+   * from what the broker holds, even when the user's Claude config is
+   * unreadable.
+   */
+  const importClaudeMemories = (scope: NomiorScope) =>
+    scope.kind !== "project"
+      ? Effect.void
+      : sql<{ readonly workspaceRoot: string }>`
+          SELECT workspace_root AS "workspaceRoot"
+          FROM projection_projects
+          WHERE project_id = ${scope.value} AND deleted_at IS NULL
+        `.pipe(
+          Effect.flatMap((rows) => {
+            const workspaceRoot = rows[0]?.workspaceRoot;
+            return workspaceRoot === undefined
+              ? Effect.void
+              : claudeMemories
+                  .syncProject({ projectId: scope.value, workspaceRoot })
+                  .pipe(Effect.asVoid);
+          }),
+          Effect.catchCause(() => Effect.void),
+        );
 
   const loadSource = (id: string, scope: NomiorScope) =>
     sql<SourceRow>`
@@ -180,10 +211,12 @@ export const make = Effect.gen(function* () {
 
   const search: ContextRetrievalPortShape["search"] = Effect.fn("RetrievalPortLive.search")(
     function* (request) {
+      const scope = parseContextScope(request.scope);
+      yield* importClaudeMemories(scope);
       const result = yield* retrieval
         .search({
           query: request.query,
-          scope: parseContextScope(request.scope),
+          scope,
           budgetTokens: ENGINE_BUDGET_TOKENS,
           candidateLimit: request.limit,
         })
@@ -445,7 +478,8 @@ export const make = Effect.gen(function* () {
 
 /**
  * The layer `mcp/toolkits/nomior/handlers.ts` provides in place of
- * `RetrievalPort.layerUnavailable`. Requires `SqlClient`, `ContextRetrieval`
- * and `MemoryWriter` — supplied by `NomiorRuntime.NomiorContextLive`.
+ * `RetrievalPort.layerUnavailable`. Requires `SqlClient`, `ContextRetrieval`,
+ * `MemoryWriter` and `ClaudeMemories` — supplied by
+ * `NomiorRuntime.NomiorContextLive`.
  */
 export const ContextRetrievalPortLive = Layer.effect(ContextRetrievalPort, make);

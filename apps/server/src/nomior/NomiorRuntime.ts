@@ -17,7 +17,9 @@
  *       ├ ContextualPrefixerDeterministic
  *       └ RerankerIdentity
  *     MemoryWriterLive          ←── ContextIngest
+ *     ClaudeMemoriesLive        ←── ContextIngest (imports ~/.claude* memories)
  *     ContextRetrievalPortLive  ←── ContextRetrieval + MemoryWriter
+ *                                    + ClaudeMemories
  *          │
  *          └──▶ mcp/toolkits/nomior  (context_search/get/decisions/remember)
  *
@@ -49,6 +51,7 @@ import { GoogleTokenPortLive } from "./connectors/google/googleapisRuntime.ts";
 import { ContextBrokerLive } from "./context/ContextBroker.ts";
 import { ContextRetrievalPortLive } from "./context/RetrievalPortLive.ts";
 import * as MeetingStore from "./meetings/MeetingStore.ts";
+import { ClaudeMemoriesLive } from "./memory/ClaudeMemories.ts";
 import { MemoryWriterLive } from "./memory/MemoryWriter.ts";
 import { layer as NomiorProjectsLive } from "./projects/NomiorProjects.ts";
 import { MemoryCandidateSinkLive } from "./memory/ReviewSinkLive.ts";
@@ -61,13 +64,15 @@ import * as SchedulerPreferences from "./scheduler/SchedulerPreferences.ts";
 
 /**
  * Context engine + memory candidates + the MCP retrieval port, sharing one
- * broker (one embedding worker fiber, one connection). Requires `SqlClient`.
+ * broker (one embedding worker fiber, one connection). Requires `SqlClient`
+ * plus `FileSystem` and `Path`, which the Claude memory import reads through.
  *
  * `provideMerge` throughout so the broker services stay visible to callers —
  * the connector adapter and the memory writer both need `ContextIngest`, and
  * providing the broker twice would fork a second embedding worker.
  */
 export const NomiorContextLive = ContextRetrievalPortLive.pipe(
+  Layer.provideMerge(ClaudeMemoriesLive),
   Layer.provideMerge(MemoryWriterLive),
   Layer.provideMerge(ContextBrokerLive),
 );

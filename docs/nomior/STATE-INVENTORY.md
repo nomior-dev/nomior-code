@@ -25,7 +25,7 @@ Migrations section of `WORKING-RULES.md`.
 | `nomior_tasks`                 | `003_NomiorContextBroker`    | canonical (extracted)            | ingest input, evidence spans into canonical chunk text    | Yes — re-ingest                                                                                                                                                   |
 | `nomior_connector_accounts`    | `004_NomiorConnectorTables`  | canonical                        | user configuration (connected accounts + selector config) | No — backed up with the DB                                                                                                                                        |
 | `nomior_connector_cursors`     | `004_NomiorConnectorTables`  | derived (resumable)              | per-stream sync position                                  | Yes — deleting a cursor row re-baselines that stream on the next sync (drivers report `cursorInvalidated`)                                                        |
-| `nomior_memory_candidates`     | `005_NomiorMemoryCandidates` | canonical                        | review engine + MCP `context_remember`                    | No, but `id` is a content hash, so re-offering a candidate is idempotent; approved rows link to `nomior_sources` via `promoted_source_id`                         |
+| `nomior_memory_candidates`     | `005_NomiorMemoryCandidates` | unused                           | nothing                                                   | N/A — no code reads or writes it since findings started going straight to memory; the table is left in place because dropping one is destructive                  |
 | `nomior_sql_migrations`        | migrator bookkeeping         | ledger                           | self                                                      | N/A — deliberately separate from upstream's `effect_sql_migrations`                                                                                               |
 
 Nothing here indexes secrets or credentials; ingest receives already-normalized
@@ -36,6 +36,14 @@ segment text from connectors, never raw filesystem or credential material.
 | State                                                       | Where                                                                  | Rebuildable?                                                        |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Google OAuth token sets (`nomior-google-token-<accountId>`) | upstream `ServerSecretStore` (0600 files under the server secrets dir) | No — re-issued by reconnecting the account; never stored elsewhere. |
+
+Read-only input, owned by someone else: Claude Code's per-project memory notes
+under `<config dir>/projects/<slugged workspace root>/memory/*.md`. Every
+`~/.claude*` directory is one account and they are read together;
+`ClaudeMemories` imports them into `nomior_sources` as `memory` sources on the
+search path, keyed `claude-memory:<projectId>:<note name>` and refreshed by
+mtime. Nomior never writes into a Claude config directory — that is pinned by
+`safetyInvariants.test.ts`, which also holds the import to that one subtree.
 
 ## Retired
 
