@@ -8,15 +8,21 @@ import type { ReviewJob, ReviewJobStatus, ReviewRiskTier, ReviewSeverityCounts }
 export interface ReviewColumn {
   readonly id: ReviewJobStatus;
   readonly title: string;
+  /**
+   * The colour of the column's marker dot. Position already says where a card
+   * is in the run; the dot says whether that position is fine, in progress, or
+   * something to look at, which is the thing you scan a board for.
+   */
+  readonly dotClass: string;
 }
 
 /** Column order mirrors the review engine's state machine. */
 export const REVIEW_COLUMNS: readonly ReviewColumn[] = [
-  { id: "queue", title: "Queue" },
-  { id: "reviewing", title: "Reviewing" },
-  { id: "waiting-external", title: "Waiting external" },
-  { id: "approved", title: "Approved" },
-  { id: "not-approved", title: "Not approved" },
+  { id: "queue", title: "Queue", dotClass: "bg-muted-foreground/40" },
+  { id: "reviewing", title: "Reviewing", dotClass: "bg-info" },
+  { id: "waiting-external", title: "Waiting external", dotClass: "bg-warning" },
+  { id: "approved", title: "Approved", dotClass: "bg-success" },
+  { id: "not-approved", title: "Not approved", dotClass: "bg-destructive" },
 ];
 
 /** Jobs per column, most recently updated first inside each. */
@@ -50,6 +56,20 @@ export function severityChips(counts: ReviewSeverityCounts): readonly SeverityCh
   if (counts.major > 0) chips.push({ label: "major", count: counts.major, tone: "warning" });
   if (counts.minor > 0) chips.push({ label: "minor", count: counts.minor, tone: "secondary" });
   return chips;
+}
+
+/**
+ * The edge marker on a card, or null for a card with nothing above minor.
+ *
+ * A column holds a dozen cards and the badges only separate on a second read.
+ * One stripe, coloured by the worst finding on the card, is what makes the two
+ * cards worth opening findable in one pass — so only blocker and major earn
+ * one, or every card has a stripe and the stripe means nothing.
+ */
+export function severityAccentClass(counts: ReviewSeverityCounts): string | null {
+  if (counts.blocker > 0) return "bg-destructive";
+  if (counts.major > 0) return "bg-warning";
+  return null;
 }
 
 export function riskTierTone(tier: ReviewRiskTier): BadgeTone {

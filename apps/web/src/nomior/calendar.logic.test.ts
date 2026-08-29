@@ -2,14 +2,19 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   accountColor,
-  agendaDays,
-  eventBlockGeometry,
-  eventsForDay,
-  groupRecurringSeries,
+  accountEventColor,
+  calendarRangeLabel,
+  calendarViewLabel,
+  CALENDAR_VIEWS,
+  eventsForAccounts,
+  isCalendarView,
+  shiftCalendarDate,
   startOfWeek,
-  weekDays,
+  toCalendarEvents,
+  toCalendarResources,
+  visibleAccounts,
 } from "./calendar.logic";
-import type { CalendarEventItem } from "./types";
+import type { CalendarAccount, CalendarEventItem } from "./types";
 
 const event = (overrides: Partial<CalendarEventItem>): CalendarEventItem => ({
   id: "evt-1",
@@ -20,6 +25,12 @@ const event = (overrides: Partial<CalendarEventItem>): CalendarEventItem => ({
   recurringSeriesId: null,
   meeting: null,
   ...overrides,
+});
+
+const account = (id: string, colorIndex: number): CalendarAccount => ({
+  id,
+  email: `${id}@example.com`,
+  colorIndex,
 });
 
 describe("startOfWeek", () => {
@@ -37,126 +48,122 @@ describe("startOfWeek", () => {
   });
 });
 
-describe("weekDays", () => {
-  it("spans seven consecutive days", () => {
-    const days = weekDays(new Date(2026, 7, 24));
-    expect(days).toHaveLength(7);
-    expect(days[6]?.getDate()).toBe(30);
+describe("views", () => {
+  it("names every view it offers, and recognises only those", () => {
+    for (const view of CALENDAR_VIEWS) {
+      expect(calendarViewLabel(view).length).toBeGreaterThan(0);
+      expect(isCalendarView(view)).toBe(true);
+    }
+    expect(isCalendarView("days")).toBe(false);
+    expect(isCalendarView(undefined)).toBe(false);
+  });
+
+  it("calls the resource view what it actually shows here", () => {
+    // Accounts are the only dimension; "Resource" would name nothing.
+    expect(calendarViewLabel("resource")).toBe("By account");
   });
 });
 
-describe("eventsForDay", () => {
-  it("filters to the local day and sorts by start", () => {
-    const tuesday = new Date(2026, 7, 25);
-    const later = event({
-      id: "later",
-      start: new Date(2026, 7, 25, 16).toISOString(),
-      end: new Date(2026, 7, 25, 17).toISOString(),
-    });
-    const earlier = event({
-      id: "earlier",
-      start: new Date(2026, 7, 25, 9).toISOString(),
-      end: new Date(2026, 7, 25, 10).toISOString(),
-    });
-    const otherDay = event({
-      id: "other",
-      start: new Date(2026, 7, 26, 9).toISOString(),
-      end: new Date(2026, 7, 26, 10).toISOString(),
-    });
-    expect(eventsForDay([later, otherDay, earlier], tuesday).map((entry) => entry.id)).toEqual([
-      "earlier",
-      "later",
+describe("stepping the date", () => {
+  it("steps a month, a day, or a week, by view", () => {
+    const august = new Date(2026, 7, 15);
+    expect(shiftCalendarDate(august, "month", 1).getMonth()).toBe(8);
+    expect(shiftCalendarDate(august, "month", -1).getMonth()).toBe(6);
+    expect(shiftCalendarDate(august, "day", 1).getDate()).toBe(16);
+    expect(shiftCalendarDate(august, "week", 1).getDate()).toBe(22);
+    // The by-account view is a week of columns, so it steps a week too.
+    expect(shiftCalendarDate(august, "resource", -1).getDate()).toBe(8);
+  });
+
+  it("does not skip February when stepping off a 31st", () => {
+    const january31 = new Date(2027, 0, 31);
+    expect(shiftCalendarDate(january31, "month", 1).getMonth()).toBe(1);
+  });
+});
+
+describe("range label", () => {
+  it("says what the view is actually showing", () => {
+    const date = new Date(2026, 7, 26);
+    expect(calendarRangeLabel(date, "month")).toContain("2026");
+    expect(calendarRangeLabel(date, "day")).toContain("26");
+    // A week label spans its own Monday to Sunday, not the clicked day.
+    const week = calendarRangeLabel(date, "week");
+    expect(week).toContain("24");
+    expect(week).toContain("30");
+  });
+});
+
+describe("account colours", () => {
+  it("gives the legend and the events the same hue, and wraps past the palette", () => {
+    expect(accountColor(0).dot).toContain("sky");
+    expect(accountEventColor(0)).toContain("sky");
+    expect(accountEventColor(4)).toBe(accountEventColor(0));
+    expect(accountColor(4).dot).toBe(accountColor(0).dot);
+  });
+});
+
+describe("calendar events", () => {
+  const accounts = [account("acct-1", 0), account("acct-2", 1)];
+
+  it("carries the account, its colour and the meeting artifacts through", () => {
+    const [mapped] = toCalendarEvents(
+      [event({ meeting: { meetingId: "m1", hasTranscript: true, hasNotes: false } })],
+      accounts,
+    );
+    expect(mapped?.resourceId).toBe("acct-1");
+    expect(mapped?.color).toBe(accountEventColor(0));
+    expect(mapped?.data.accountEmail).toBe("acct-1@example.com");
+    expect(mapped?.data.meeting?.hasTranscript).toBe(true);
+  });
+
+  it("marks every event read-only: nothing here writes back to Google", () => {
+    const mapped = toCalendarEvents([event({}), event({ id: "evt-2" })], accounts);
+    expect(mapped.every((entry) => entry.readOnly)).toBe(true);
+  });
+
+  it("carries a series id only when the event has one", () => {
+    const [oneOff] = toCalendarEvents([event({})], accounts);
+    const [recurring] = toCalendarEvents([event({ recurringSeriesId: "series-1" })], accounts);
+    expect(oneOff?.recurringEventId).toBeUndefined();
+    expect(recurring?.recurringEventId).toBe("series-1");
+  });
+
+  it("still renders an event whose account is not in the list", () => {
+    // A sync can land an event before the account list is re-read; dropping it
+    // would show an emptier day than the one the user has.
+    const [orphan] = toCalendarEvents([event({ accountId: "acct-9" })], accounts);
+    expect(orphan?.data.accountEmail).toBe("acct-9");
+    expect(orphan?.color).toBe(accountEventColor(0));
+  });
+});
+
+describe("account filter", () => {
+  const accounts = [account("acct-1", 0), account("acct-2", 1)];
+
+  it("keeps the accounts that are not hidden", () => {
+    const shown = visibleAccounts(accounts, new Set(["acct-1"]));
+    expect(shown.map((entry) => entry.id)).toEqual(["acct-2"]);
+    expect(eventsForAccounts([event({}), event({ accountId: "acct-2" })], shown)).toHaveLength(1);
+  });
+
+  it("treats hiding everything as hiding nothing", () => {
+    // An empty grid cannot say whether the week is free or the filter ate it.
+    const shown = visibleAccounts(accounts, new Set(["acct-1", "acct-2"]));
+    expect(shown).toHaveLength(2);
+  });
+
+  it("shows an account connected after the filter was set", () => {
+    const withNew = [...accounts, account("acct-3", 2)];
+    expect(visibleAccounts(withNew, new Set(["acct-1"])).map((entry) => entry.id)).toEqual([
+      "acct-2",
+      "acct-3",
     ]);
   });
-});
 
-describe("agendaDays", () => {
-  it("keeps only days with events", () => {
-    const monday = new Date(2026, 7, 24);
-    const tuesdayEvent = event({
-      start: new Date(2026, 7, 25, 9).toISOString(),
-      end: new Date(2026, 7, 25, 10).toISOString(),
-    });
-    const agenda = agendaDays([tuesdayEvent], monday);
-    expect(agenda).toHaveLength(1);
-    expect(agenda[0]?.day.getDate()).toBe(25);
-  });
-});
-
-describe("groupRecurringSeries", () => {
-  it("groups by series id, orders occurrences, and skips one-offs", () => {
-    const second = event({
-      id: "b",
-      recurringSeriesId: "s1",
-      start: "2026-08-26T09:30:00.000Z",
-      end: "2026-08-26T09:45:00.000Z",
-    });
-    const first = event({
-      id: "a",
-      recurringSeriesId: "s1",
-      start: "2026-08-25T09:30:00.000Z",
-      end: "2026-08-25T09:45:00.000Z",
-    });
-    const oneOff = event({ id: "c" });
-    const series = groupRecurringSeries([second, oneOff, first]);
-    expect(series).toHaveLength(1);
-    expect(series[0]?.occurrences.map((entry) => entry.id)).toEqual(["a", "b"]);
-  });
-});
-
-describe("accountColor", () => {
-  it("wraps around the palette instead of failing on high indexes", () => {
-    expect(accountColor(0)).toEqual(accountColor(4));
-    expect(accountColor(7).dot.length).toBeGreaterThan(0);
-  });
-});
-
-describe("eventBlockGeometry", () => {
-  const tuesday = new Date(2026, 7, 25);
-
-  it("places an event proportionally inside the visible hour span", () => {
-    const morning = event({
-      start: new Date(2026, 7, 25, 10, 0).toISOString(),
-      end: new Date(2026, 7, 25, 12, 0).toISOString(),
-    });
-    const geometry = eventBlockGeometry(morning, tuesday, 8, 20);
-    expect(geometry?.topPercent).toBeCloseTo(((10 - 8) / 12) * 100, 5);
-    expect(geometry?.heightPercent).toBeCloseTo((2 / 12) * 100, 5);
-  });
-
-  it("keeps very short events visible", () => {
-    const standup = event({
-      start: new Date(2026, 7, 25, 9, 30).toISOString(),
-      end: new Date(2026, 7, 25, 9, 45).toISOString(),
-    });
-    expect(eventBlockGeometry(standup, tuesday, 8, 20)?.heightPercent).toBeGreaterThanOrEqual(2.5);
-  });
-
-  it("returns null for an event entirely outside the visible hours", () => {
-    const lateNight = event({
-      start: new Date(2026, 7, 25, 21, 0).toISOString(),
-      end: new Date(2026, 7, 25, 22, 0).toISOString(),
-    });
-    expect(eventBlockGeometry(lateNight, tuesday, 8, 20)).toBeNull();
-  });
-
-  it("clamps an event running past the end of the window to the column edge", () => {
-    const evening = event({
-      start: new Date(2026, 7, 25, 19, 0).toISOString(),
-      end: new Date(2026, 7, 25, 23, 0).toISOString(),
-    });
-    const geometry = eventBlockGeometry(evening, tuesday, 8, 20);
-    expect(geometry?.topPercent).toBeCloseTo(((19 - 8) / 12) * 100, 5);
-    expect(geometry?.heightPercent).toBeCloseTo((1 / 12) * 100, 5);
-  });
-
-  it("pins a midnight-spanning event to the top of the day it runs into", () => {
-    const overnight = event({
-      start: new Date(2026, 7, 24, 23, 0).toISOString(),
-      end: new Date(2026, 7, 25, 9, 0).toISOString(),
-    });
-    const geometry = eventBlockGeometry(overnight, tuesday, 8, 20);
-    expect(geometry?.topPercent).toBe(0);
-    expect(geometry?.heightPercent).toBeCloseTo((1 / 12) * 100, 5);
+  it("columns the by-account view on exactly the accounts still showing", () => {
+    const shown = visibleAccounts(accounts, new Set(["acct-2"]));
+    expect(toCalendarResources(shown)).toEqual([
+      { id: "acct-1", title: "acct-1@example.com", color: accountEventColor(0) },
+    ]);
   });
 });

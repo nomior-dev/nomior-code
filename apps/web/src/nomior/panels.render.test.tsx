@@ -8,8 +8,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 
-import { addDays, startOfWeek } from "./calendar.logic";
-import { AgendaList, CalendarPanel, WeekGrid } from "./CalendarPanel";
+import { addDays, startOfWeek, toCalendarEvents } from "./calendar.logic";
+import { AccountLegend, CalendarPanel } from "./CalendarPanel";
 import {
   accountScope,
   AdvancedConnectorSection,
@@ -53,10 +53,12 @@ describe("Nomior panels render standalone", () => {
     expect(markup).toContain("Memory candidates");
   });
 
-  it("calendar renders the week controls and view toggle", () => {
+  it("calendar renders the date controls and every view it offers", () => {
     const markup = renderToStaticMarkup(<CalendarPanel />);
     expect(markup).toContain("Today");
-    expect(markup).toContain("Agenda");
+    for (const label of ["Month", "Week", "Day", "Agenda", "By account"]) {
+      expect(markup).toContain(label);
+    }
   });
 
   it("instances renders the scheduler section", () => {
@@ -96,7 +98,23 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(markup).toContain("Request manual review");
   });
 
-  it("week grid places fixture events with account colors", async () => {
+  it("the legend names every account and says which are filtered out", async () => {
+    const port = createFixtureNomiorPort(now);
+    const accounts = await port.listCalendarAccounts();
+    expect(accounts.length).toBeGreaterThan(1);
+    const hidden = new Set([accounts[0]!.id]);
+    const markup = renderToStaticMarkup(
+      <AccountLegend accounts={accounts} hiddenAccountIds={hidden} onToggleAccount={noop} />,
+    );
+    // A hidden account stays listed, or its filter has no way back.
+    for (const account of accounts) {
+      expect(markup).toContain(account.email);
+    }
+    expect(markup).toContain('aria-pressed="false"');
+    expect(markup).toContain('aria-pressed="true"');
+  });
+
+  it("maps fixture events onto the calendar with their account colours", async () => {
     const port = createFixtureNomiorPort(now);
     const weekStart = startOfWeek(now);
     const accounts = await port.listCalendarAccounts();
@@ -105,27 +123,10 @@ describe("Nomior panel subcomponents render fixture data", () => {
       addDays(weekStart, 7).toISOString(),
     );
     expect(events.length).toBeGreaterThan(0);
-    const markup = renderToStaticMarkup(
-      <WeekGrid accounts={accounts} events={events} today={now} weekStart={weekStart} />,
-    );
-    expect(markup).toContain("Daily standup");
-    expect(markup).toContain("Review engine deep dive");
-  });
-
-  it("agenda lists fixture events with account emails and artifact badges", async () => {
-    const port = createFixtureNomiorPort(now);
-    const weekStart = startOfWeek(now);
-    const accounts = await port.listCalendarAccounts();
-    const events = await port.listCalendarEvents(
-      weekStart.toISOString(),
-      addDays(weekStart, 7).toISOString(),
-    );
-    const markup = renderToStaticMarkup(
-      <AgendaList accounts={accounts} events={events} weekStart={weekStart} />,
-    );
-    expect(markup).toContain("Dentist");
-    expect(markup).toContain("personal@gmail.example");
-    expect(markup).toContain("Transcript");
+    const mapped = toCalendarEvents(events, accounts);
+    expect(mapped.map((entry) => entry.title)).toContain("Daily standup");
+    // Two accounts, two colours: the grid can tell them apart.
+    expect(new Set(mapped.map((entry) => entry.color)).size).toBeGreaterThan(1);
   });
 
   it("memory candidate rows offer decisions while pending and show the verdict after", async () => {
