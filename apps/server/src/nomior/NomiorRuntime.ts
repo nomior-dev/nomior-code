@@ -34,6 +34,7 @@
  *     ReviewPublisher.layerNoop                    (no external posting)
  *     MemoryCandidateSinkLive ←── MemoryWriter + NomiorProjects
  *     ReviewEngine.layer ←── ReviewEngineConfig + ReviewRunContexts
+ *       ReviewRunContextsLive ←── NomiorProjects (repo → checkout → playbook)
  * ```
  *
  * @module nomior/NomiorRuntime
@@ -104,9 +105,10 @@ export const NomiorSchedulerLive = InstanceScheduler.layer.pipe(
  *
  * Requires `SqlClient`, `InstanceScheduler`, `ProviderInstanceRegistry`,
  * `RepositoryIdentityResolver` and `MemoryWriter`. `ReviewEngine` itself is not
- * built here: it also needs `ReviewRunContexts` (per-job leg configuration),
- * which is deployment data, so the caller provides that and
- * `ReviewEngine.layer`.
+ * built here: it also needs `ReviewRunContexts`, whose leg roster is the
+ * operator's, so the caller provides `ReviewEngine.layer` over
+ * `wiring/ReviewRunContextsLive` — the resolver that reads each repo's own
+ * `.nomior/review.md` playbook.
  */
 export const NomiorReviewPortsLive = Layer.mergeAll(
   ReviewJobStore.layer,
