@@ -1,2 +1,7 @@
 # git autocrlf=true converts LF to CRLF on Windows, causing issues with oxfmt
 * text=auto eol=lf
+
+# Never text-merge the lockfile: binary merging forces a conflict whenever both
+# sides touched it, and scripts/nomior/resolve-lockfile.sh resolves it by taking
+# upstream's lockfile and regenerating (see docs/nomior/FORK-MANIFEST.md).
+pnpm-lock.yaml merge=binary

@@ -5,6 +5,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
+import { NOMIOR_PRODUCT_NAME } from "@t3tools/shared/nomiorBrand";
 
 import type * as Electron from "electron";
 
@@ -195,8 +196,11 @@ describe("DesktopAppIdentity", () => {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         yield* identity.configure;
 
-        assert.deepEqual(calls.setName, ["T3 Code (Alpha)"]);
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, "T3 Code (Alpha)");
+        assert.deepEqual(calls.setName, [`${NOMIOR_PRODUCT_NAME} (Alpha)`]);
+        assert.equal(
+          calls.setAboutPanelOptions[0]?.applicationName,
+          `${NOMIOR_PRODUCT_NAME} (Alpha)`,
+        );
         assert.equal(calls.setAboutPanelOptions[0]?.applicationVersion, "1.2.3");
         assert.equal(calls.setAboutPanelOptions[0]?.version, "0123456789ab");
         // Packaged: the bundle's own icon stands, so a custom one the user

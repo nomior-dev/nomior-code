@@ -1,0 +1,197 @@
+# Daily upstream sync: merge the newest unmerged upstream STABLE tag into a
+# sync/upstream-<tag> branch and open a labeled PR. Auto-merge is deliberately
+# NOT enabled yet — the plan (PLAN.md, "Fork discipline") enables it only after
+# several observed clean runs; until then a human merges the PR.
+#
+# Uses NOMIOR_SYNC_TOKEN (a PAT with contents+pull-requests write) when
+# configured so the pushed branch and PR trigger CI; the default GITHUB_TOKEN
+# works too but GitHub suppresses workflow runs for pushes it makes.
+name: Nomior Upstream Sync
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: nomior-upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: https://github.com/pingdotgg/t3code.git
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "nomior-sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch upstream --prune 'refs/tags/*:refs/tags/*' '+refs/heads/main:refs/remotes/upstream/main'
+
+      - name: Resolve newest unmerged upstream stable tag
+        id: tag
+        run: |
+          set -euo pipefail
+          # Stable = bare vX.Y.Z only. A positive match also keeps out any
+          # other prerelease suffix (-beta.N, -rc.N), not just -nightly.
+          tag=$(git for-each-ref 'refs/tags/v*' --sort=-v:refname --format='%(refname:strip=2)' \
+            | grep -E -m 1 '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          if [ -z "$tag" ]; then
+            echo "No stable upstream tag found."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git merge-base --is-ancestor "$tag" HEAD; then
+            echo "Newest stable tag $tag is already merged; nothing to sync."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Syncing to $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # Each run recreates the sync branch from main and force-pushes it. If a
+      # human pushed fix commits onto the open sync PR, that would silently
+      # discard them — so when the remote branch carries any commit not
+      # authored by nomior-sync-bot, leave branch and PR alone until the PR is
+      # merged or closed.
+      - name: Guard existing sync branch
+        if: steps.tag.outputs.tag != ''
+        id: guard
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          skip=false
+          if git rev-parse -q --verify "refs/remotes/origin/sync/upstream-$TAG" >/dev/null; then
+            foreign=$(git log --format='%an' "origin/sync/upstream-$TAG" --not main "$TAG" \
+              | grep -Fxv 'nomior-sync-bot' | sort -u || true)
+            if [ -n "$foreign" ]; then
+              echo "sync/upstream-$TAG has commits not authored by nomior-sync-bot:"
+              printf '%s\n' "$foreign"
+              echo "Leaving the branch and its PR untouched."
+              skip=true
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+
+      - name: Setup pnpm via corepack
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        run: corepack enable
+
+      # Install before merging so the manifest checker's dependencies come from
+      # a known-good lockfile state (main). The checker only needs the scripts
+      # workspace.
+      - name: Install manifest-check dependencies
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile --filter @t3tools/scripts...
+
+      - name: Merge upstream tag
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          git switch -C "sync/upstream-$TAG" main
+          if ! git merge --no-ff --no-edit "$TAG"; then
+            conflicted=$(git diff --name-only --diff-filter=U)
+            if [ "$conflicted" = "pnpm-lock.yaml" ]; then
+              # Lockfile-only conflict: mechanical resolution per the policy in
+              # docs/nomior/FORK-MANIFEST.md.
+              sh scripts/nomior/resolve-lockfile.sh
+              git commit --no-edit
+            else
+              echo "Sync merge of $TAG conflicts beyond pnpm-lock.yaml:" >&2
+              printf '%s\n' "$conflicted" >&2
+              echo "Resolve manually: git fetch upstream && git merge $TAG on a sync branch." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Report manifest impact
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        id: manifest
+        run: |
+          set -euo pipefail
+          node scripts/nomior/check-fork-manifest.ts --print-manifest-paths > /tmp/manifest-paths.txt
+          git diff --name-only main HEAD | sort -u > /tmp/sync-changed.txt
+          touched=$(grep -Fxf /tmp/manifest-paths.txt /tmp/sync-changed.txt || true)
+          {
+            echo "touched<<EOF"
+            echo "$touched"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          # The full check is the tripwire for upstream deleting or rewriting a
+          # file we modify; its result goes into the PR body, review decides.
+          if node scripts/nomior/check-fork-manifest.ts; then
+            echo "check=pass" >> "$GITHUB_OUTPUT"
+          else
+            echo "check=fail" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push sync branch
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        run: git push --force-with-lease origin "HEAD:refs/heads/sync/upstream-${{ steps.tag.outputs.tag }}"
+
+      - name: Open or update pull request
+        if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          TOUCHED: ${{ steps.manifest.outputs.touched }}
+          CHECK: ${{ steps.manifest.outputs.check }}
+        run: |
+          set -euo pipefail
+          gh label create upstream-sync --description "Automated upstream sync PR" --color 1d76db || true
+
+          if [ -n "$TOUCHED" ]; then
+            touched_list=$(printf '%s\n' "$TOUCHED" | sed 's/^/- `/;s/$/`/')
+            touched_section="Manifest'd upstream files TOUCHED by this sync — review required:
+          $touched_list"
+          else
+            touched_section="No manifest'd upstream file was touched by this sync."
+          fi
+
+          body=$(cat <<EOF
+          Automated sync of upstream stable tag \`$TAG\`.
+
+          $touched_section
+
+          Fork-manifest check after merge: **$CHECK** (\`pnpm nomior:check-manifest\`)
+
+          Auto-merge is intentionally not enabled yet (PLAN.md, "Fork discipline"): merge manually once checks are green.
+          EOF
+          )
+
+          existing=$(gh pr list --head "sync/upstream-$TAG" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --body "$body"
+          else
+            gh pr create \
+              --base main \
+              --head "sync/upstream-$TAG" \
+              --title "chore(sync): merge upstream $TAG" \
+              --label upstream-sync \
+              --body "$body"
+          fi

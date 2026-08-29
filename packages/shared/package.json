@@ -230,6 +230,10 @@
     "./claudeCompaction": {
       "types": "./src/claudeCompaction.ts",
       "import": "./src/claudeCompaction.ts"
+    },
+    "./nomiorBrand": {
+      "types": "./src/nomiorBrand.ts",
+      "import": "./src/nomiorBrand.ts"
     }
   },
   "scripts": {

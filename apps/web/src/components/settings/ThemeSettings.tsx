@@ -10,6 +10,7 @@ import {
   UploadIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { APP_BASE_NAME } from "../../branding";
 import { cn } from "../../lib/utils";
 import {
   getThemeDefinition,
@@ -849,7 +850,7 @@ export function ThemeLibrary({
   return (
     <div className="space-y-3">
       <p className="px-3 text-[13px] leading-[1.45] text-muted-foreground/80 sm:px-4">
-        Choose how T3 Code looks. Use a built-in theme or make your own.
+        Choose how {APP_BASE_NAME} looks. Use a built-in theme or make your own.
       </p>
       <h3 className="px-3 text-sm font-medium tracking-[-0.005em] text-foreground sm:px-4">
         Color scheme
