@@ -80,6 +80,38 @@ for humans and ignored by tooling.
 | `apps/server/src/auth/RpcAuthorization.ts`                    | required auth scope per `nomior.*` RPC method; the registry is exhaustive by type, so a new method cannot skip it                                                                                                          |
 | `apps/web/index.html`                                         | branding: static boot-shell title, splash aria-label and logo alt (rendered before React hydrates, so it cannot read `APP_BASE_NAME`)                                                                                      |
 | `apps/web/src/branding.logic.ts`                              | branding: `splitBrandLockup`, which splits the base name into the sidebar lockup's two halves                                                                                                                              |
+| `apps/server/src/ws.ts`                                       | handler registration: `makeNomiorPanelHandlers` spread into `WsRpcGroup.of` plus `Layer.provide(NomiorPanelRpcLive)` on the websocket RPC route layer                                                                      |
+| `scripts/package.json`                                        | dev dependency `playwright`, used by the additive `scripts/nomior/record-demo-gifs.ts`                                                                                                                                     |
+| `apps/desktop/package.json`                                   | app identity: `productName` is `Nomior Code (Alpha)` — electron-builder derives the bundle name, installer name and default userData dir from it                                                                           |
+| `apps/desktop/scripts/electron-launcher.mjs`                  | app identity: dev/prod display names, bundle id `com.nomior.nomiorcode`, URL schemes `nomior` / `nomior-dev`                                                                                                               |
+| `apps/desktop/scripts/electron-launcher.test.mjs`             | app identity: launcher bundle-path assertions use the new display name                                                                                                                                                     |
+| `apps/desktop/src/electron/ElectronProtocol.ts`               | app identity: renderer URL schemes `nomior` / `nomior-dev` — must stay in lockstep with `DESKTOP_RENDERER_ORIGINS` in `apps/server/src/http.ts`                                                                            |
+| `apps/desktop/src/electron/ElectronProtocol.test.ts`          | app identity: scheme registration and CSP assertions use the Nomior schemes                                                                                                                                                |
+| `apps/desktop/src/app/DesktopEnvironment.test.ts`             | app identity: app-user-model-id and Linux wm-class assertions                                                                                                                                                              |
+| `apps/desktop/src/app/DesktopEarlyElectronStartup.ts`         | app identity: pre-`ready` Linux wm-class `nomior` / `nomior-dev`                                                                                                                                                           |
+| `apps/desktop/src/app/DesktopEarlyElectronStartup.test.ts`    | app identity: wm-class assertion                                                                                                                                                                                           |
+| `apps/desktop/src/app/DesktopClerk.ts`                        | app identity: the single-instance-lock comment names the Nomior productName-derived userData dir                                                                                                                           |
+| `apps/desktop/src/app/DesktopClerk.test.ts`                   | app identity: renderer-scheme and userData-dir assertions                                                                                                                                                                  |
+| `apps/desktop/src/app/DesktopLinuxUrlHandler.ts`              | app identity: `nomior-url-handler.desktop` — the entry lands in the user's shared applications dir, so the filename must not collide with upstream's                                                                       |
+| `apps/desktop/src/app/DesktopLinuxUrlHandler.test.ts`         | app identity: entry filename, scheme and display-name assertions                                                                                                                                                           |
+| `apps/desktop/src/window/DesktopWindow.test.ts`               | app identity: renderer origin fixtures use `nomior://app`                                                                                                                                                                  |
+| `apps/server/src/http.ts`                                     | app identity: `DESKTOP_RENDERER_ORIGINS` — the CORS allowlist for the Electron renderer's custom scheme                                                                                                                    |
+| `apps/server/src/cloud/bootService.ts`                        | app identity: systemd unit `nomior.service` and launchd label `com.nomior.nomiorcode.service`                                                                                                                              |
+| `apps/server/src/cloud/bootService.test.ts`                   | app identity: unit-path, plist-path and launchctl-argument assertions                                                                                                                                                      |
+| `apps/server/src/cli/service.test.ts`                         | app identity: boot-service unit-path fixture                                                                                                                                                                               |
+| `apps/web/src/environments/primary/httpLayer.test.ts`         | app identity: desktop renderer origin fixture                                                                                                                                                                              |
+| `apps/web/src/cloud/linkEnvironment.test.ts`                  | app identity: desktop renderer origin fixture                                                                                                                                                                              |
+| `apps/web/src/components/clerk/authRedirect.test.ts`          | app identity: desktop OAuth redirect-URL fixtures                                                                                                                                                                          |
+| `scripts/build-desktop-artifact.ts`                           | app identity: `appId`, `productName`, `artifactName`, mac/linux protocol schemes, Linux `executableName` and `StartupWMClass`                                                                                              |
+| `scripts/build-desktop-artifact.test.ts`                      | app identity: packaging-config assertions                                                                                                                                                                                  |
+| `scripts/release-smoke.ts`                                    | app identity: update-manifest asset-name fixtures follow `artifactName`                                                                                                                                                    |
+| `scripts/merge-update-manifests.test.ts`                      | app identity: update-manifest asset-name fixtures follow `artifactName`                                                                                                                                                    |
+| `scripts/dev-runner.test.ts`                                  | app identity: `T3_BOOT_SERVICE_UNIT` fixture follows the renamed boot-service unit                                                                                                                                         |
+| `docs/user/background-service.md`                             | docs: systemd unit and launchd plist names users look for                                                                                                                                                                  |
+| `docs/internals/t3-connect.md`                                | docs: Clerk redirect allowlist, `allowed_origins`, and the macOS bundle id used for passkeys                                                                                                                               |
+| `docs/internals/scripts.md`                                   | docs: desktop production root URL scheme                                                                                                                                                                                   |
+| `docs/internals/workspace-layout.md`                          | docs: the protocol the Electron shell loads the web bundle over                                                                                                                                                            |
+| `docs/operations/release.md`                                  | docs: macOS App ID and provisioning-profile identifier                                                                                                                                                                     |
 
 <!-- fork-manifest:end -->
 
@@ -92,14 +124,37 @@ copy stay free of upstream marks. Deliberately unchanged, so upstream merges
 and existing user state keep working:
 
 - npm package names (`@t3tools/*`, `t3`), binary names, CLI command names
-- config/state dirs (`~/.t3`, `t3code`, `t3code-dev`, the legacy
-  `T3 Code (Alpha)` userData probe), localStorage keys (`t3code:*`)
-- app IDs (`com.t3tools.t3code`), Linux wm-class/desktop-entry file names,
-  protocol schemes
+- the server state dir (`~/.t3`) and localStorage keys (`t3code:*`)
+- internal markers invisible outside the app: the worktree branch prefix
+  (`t3code/…`), the preview session partition (`persist:t3code-preview-*`),
+  the WSL runtime marker files, the Electron user-agent token, and the Grok
+  OAuth referrer (`t3code`, allowlisted by xAI upstream)
 - protocol-facing identifiers (MCP server name, git author/committer names)
 - "T3 Connect" (the relay/tunnel service, tied to upstream's hosted infra) and
   the "T3 Chat" theme label
 - code comments mentioning upstream names (not user-visible)
+
+## Desktop app identity
+
+Separate from display branding, and deliberately Nomior's own so a machine can
+run both apps without their OAuth callbacks, launchd records or app state
+crossing over. These values must move together — the renderer scheme in
+`ElectronProtocol.ts` and the CORS allowlist in `apps/server/src/http.ts` in
+particular, or every renderer request fails its origin check.
+
+| What                   | Value                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| bundle / app id        | `com.nomior.nomiorcode` (`.dev` suffix in development)    |
+| URL scheme             | `nomior` (`nomior-dev` in development)                    |
+| productName            | `Nomior Code (Alpha)` / `(Nightly)` / `(Dev)`             |
+| artifactName           | `Nomior-Code-${version}-${arch}.${ext}`                   |
+| userData dir           | `nomior` / `nomior-dev`                                   |
+| Linux executable       | `nomior`                                                  |
+| Linux wm-class / entry | `nomior` / `nomior.desktop`, `nomior-url-handler.desktop` |
+| boot service           | `nomior.service`, `com.nomior.nomiorcode.service`         |
+
+Mobile bundle ids stay upstream's (`com.t3tools.t3code*`): they are App Store
+and Play Store listing identities, and changing one creates a new listing.
 
 Known-pending (NOT yet rebranded — later tracks own these):
 

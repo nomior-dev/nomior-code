@@ -15,8 +15,8 @@ describe("nomiorBrand", () => {
     expect(containsUpstreamBranding("T3 Code (Nightly)")).toBe(true);
     expect(containsUpstreamBranding("t3 code splash screen")).toBe(true);
     expect(containsUpstreamBranding("Nomior Code (Alpha)")).toBe(false);
-    // Non-display identifiers keep upstream values and must not trip the
-    // detector when they appear inside larger technical strings.
+    // Reverse-DNS and slug identifiers must not trip the detector even when
+    // they embed an upstream token inside a larger technical string.
     expect(containsUpstreamBranding("com.t3tools.t3code")).toBe(false);
   });
 });

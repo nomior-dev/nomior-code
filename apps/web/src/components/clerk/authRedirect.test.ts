@@ -14,19 +14,19 @@ describe("resolveClerkSignInProps", () => {
   it("removes a Clerk virtual pathname and callback params while preserving the desktop route", () => {
     expect(
       resolveClerkSignInProps(
-        "t3code://app/CLERK-ROUTER/VIRTUAL/sign-up?__clerk_status=complete#/settings/connections",
+        "nomior://app/CLERK-ROUTER/VIRTUAL/sign-up?__clerk_status=complete#/settings/connections",
         true,
       ),
     ).toEqual({
-      forceRedirectUrl: "t3code://app/#/settings/connections",
-      signUpForceRedirectUrl: "t3code://app/#/settings/connections",
+      forceRedirectUrl: "nomior://app/#/settings/connections",
+      signUpForceRedirectUrl: "nomior://app/#/settings/connections",
     });
   });
 
   it("preserves a clean development desktop route", () => {
-    expect(resolveClerkSignInProps("t3code-dev://app/#/settings/general", true)).toEqual({
-      forceRedirectUrl: "t3code-dev://app/#/settings/general",
-      signUpForceRedirectUrl: "t3code-dev://app/#/settings/general",
+    expect(resolveClerkSignInProps("nomior-dev://app/#/settings/general", true)).toEqual({
+      forceRedirectUrl: "nomior-dev://app/#/settings/general",
+      signUpForceRedirectUrl: "nomior-dev://app/#/settings/general",
     });
   });
 });

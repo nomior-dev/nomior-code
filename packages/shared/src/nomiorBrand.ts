@@ -2,9 +2,11 @@
  * Nomior Code branding constants.
  *
  * The single source of truth for user-visible product naming in the fork.
- * Display strings only: npm package names, binary names, config dirs
- * (`t3code`, `~/.t3`), protocol schemes, and app IDs deliberately keep their
- * upstream values so upstream merges and existing user state stay intact.
+ * Display strings only: npm package names, binary names, and the server state
+ * dir (`~/.t3`, `t3code:*` localStorage keys) deliberately keep their upstream
+ * values so upstream merges and existing user state stay intact. Desktop app
+ * identity — bundle id, URL scheme, user-data dir, boot-service label — is
+ * Nomior's own and is not sourced from here.
  * See docs/nomior/FORK-MANIFEST.md for the files wired to this module.
  */
 export const NOMIOR_PRODUCT_NAME = "Nomior Code";

@@ -1,4 +1,4 @@
-// This file mostly exists because we want dev mode to say "T3 Code (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "Nomior Code (Dev)" instead of "electron"
 
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -15,11 +15,11 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-export const APP_DISPLAY_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
+export const APP_DISPLAY_NAME = isDevelopment ? "Nomior Code (Dev)" : "Nomior Code (Alpha)";
 export const APP_BUNDLE_ID = isDevelopment
-  ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
-  : "com.t3tools.t3code";
-const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-dev"] : ["t3code"];
+  ? `com.nomior.nomiorcode.dev.${devBundleIdSuffix || "local"}`
+  : "com.nomior.nomiorcode";
+const APP_PROTOCOL_SCHEMES = isDevelopment ? ["nomior-dev"] : ["nomior"];
 const LAUNCHER_VERSION = 15;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,
@@ -347,7 +347,7 @@ function buildMacLauncher(electronBinaryPath) {
   if (isDevelopment) {
     // Keep Electron's native executable inside the branded bundle. Launching the
     // node_modules copy makes macOS associate the process (and Dock label) with
-    // Electron.app even though this bundle's Info.plist has the T3 Code name.
+    // Electron.app even though this bundle's Info.plist has the Nomior Code name.
     // Its conventional executable name also keeps Electron's default-app runtime
     // in development mode instead of making app.isPackaged report true.
     writeDevelopmentLauncherScript(launcherBinaryPath, runtimeElectronBinaryPath);
