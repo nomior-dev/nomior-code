@@ -17,11 +17,16 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import {
+  CalendarEventStore,
+  normalizeTimestamp,
+  type StoredCalendarEvent,
+} from "../calendar/CalendarEventStore.ts";
 import type { ConnectorDriver, ConnectorHealth, ConnectorInstance } from "../ConnectorDriver.ts";
 import { ConnectorDriverError, ConnectorSyncError } from "../Errors.ts";
 import {
   type ConnectorAccountId,
-  ConnectorDriverKind,
+  GOOGLE_CALENDAR_DRIVER_KIND,
   type ConnectorRecord,
   type ConnectorSyncResult,
 } from "../Records.ts";
@@ -35,7 +40,7 @@ import {
 } from "./GooglePorts.ts";
 import { GoogleTokenVault } from "./GoogleTokenVault.ts";
 
-const DRIVER_KIND = ConnectorDriverKind.make("googleCalendar");
+const DRIVER_KIND = GOOGLE_CALENDAR_DRIVER_KIND;
 /** Hard bound on pages per sync call — a runaway loop fails loudly. */
 const MAX_PAGES_PER_SYNC = 100;
 /**
@@ -59,7 +64,11 @@ const CalendarCursor = Schema.Struct({
 const decodeCursor = Schema.decodeUnknownEffect(Schema.fromJsonString(CalendarCursor));
 const encodeCursor = Schema.encodeSync(Schema.fromJsonString(CalendarCursor));
 
-export type GoogleCalendarDriverEnv = GoogleCalendarPort | GoogleTokenVault | GoogleTokenPort;
+export type GoogleCalendarDriverEnv =
+  | GoogleCalendarPort
+  | GoogleTokenVault
+  | GoogleTokenPort
+  | CalendarEventStore;
 
 const normalizeEvent = (
   accountId: ConnectorAccountId,
@@ -101,6 +110,41 @@ const normalizeEvent = (
   };
 };
 
+/**
+ * The calendar-grid row for one event, or `undefined` when Google gave no
+ * timed boundaries: an all-day event carries `date` instead of `dateTime`
+ * and has no representation in the grid's wire type, so it is skipped
+ * rather than pinned to an invented midnight.
+ */
+const toStoredEvent = (
+  accountId: ConnectorAccountId,
+  event: GoogleCalendarEvent,
+): StoredCalendarEvent | undefined => {
+  const start = event.start?.dateTime;
+  const end = event.end?.dateTime;
+  if (start === undefined || end === undefined) {
+    return undefined;
+  }
+  const normalizedStart = normalizeTimestamp(start);
+  const normalizedEnd = normalizeTimestamp(end);
+  if (Option.isNone(normalizedStart) || Option.isNone(normalizedEnd)) {
+    return undefined;
+  }
+  return {
+    id: event.id,
+    accountId,
+    title: event.summary ?? "",
+    start: normalizedStart.value,
+    end: normalizedEnd.value,
+    recurringSeriesId: event.recurringEventId ?? null,
+    // Google Calendar knows nothing of transcripts or notes; meeting
+    // assembly owns those columns.
+    meetingId: null,
+    hasTranscript: false,
+    hasNotes: false,
+  };
+};
+
 export const GoogleCalendarDriver: ConnectorDriver<
   GoogleCalendarConnectorConfig,
   GoogleCalendarDriverEnv
@@ -117,6 +161,7 @@ export const GoogleCalendarDriver: ConnectorDriver<
       const calendarPort = yield* GoogleCalendarPort;
       const tokenPort = yield* GoogleTokenPort;
       const vault = yield* GoogleTokenVault;
+      const eventStore = yield* CalendarEventStore;
 
       const syncError = (operation: string, detail?: string, cause?: unknown) =>
         new ConnectorSyncError({
@@ -145,6 +190,7 @@ export const GoogleCalendarDriver: ConnectorDriver<
                 )
               : undefined;
           const records: Array<ConnectorRecord> = [];
+          const storedEvents: Array<StoredCalendarEvent> = [];
           let pageToken: string | undefined;
           let nextSyncToken: string | undefined;
           for (let page = 0; page < MAX_PAGES_PER_SYNC; page += 1) {
@@ -163,6 +209,10 @@ export const GoogleCalendarDriver: ConnectorDriver<
                 continue;
               }
               records.push(normalizeEvent(accountId, event));
+              const stored = toStoredEvent(accountId, event);
+              if (stored !== undefined) {
+                storedEvents.push(stored);
+              }
             }
             if (result.nextPageToken !== undefined) {
               pageToken = result.nextPageToken;
@@ -177,6 +227,16 @@ export const GoogleCalendarDriver: ConnectorDriver<
               `no nextSyncToken after ${MAX_PAGES_PER_SYNC} pages — aborting instead of looping`,
             );
           }
+          // Store before reporting success: failing here leaves the caller's
+          // cursor unadvanced, so the next sync replays this window rather
+          // than dropping the events from the grid for good.
+          yield* eventStore
+            .upsertMany(storedEvents)
+            .pipe(
+              Effect.mapError((cause) =>
+                syncError("calendarEvents.upsertMany", cause.message, cause),
+              ),
+            );
           return {
             records,
             nextCursor: encodeCursor({ syncToken: nextSyncToken }),
@@ -274,6 +334,18 @@ export const GoogleCalendarDriver: ConnectorDriver<
                   driverKind: DRIVER_KIND,
                   accountId,
                   detail: "failed to remove stored Google credentials",
+                  cause,
+                }),
+            ),
+          );
+          // The grid must not keep showing a disconnected account's events.
+          yield* eventStore.deleteForAccount(accountId).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ConnectorDriverError({
+                  driverKind: DRIVER_KIND,
+                  accountId,
+                  detail: "failed to remove stored calendar events",
                   cause,
                 }),
             ),

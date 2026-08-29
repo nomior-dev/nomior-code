@@ -6,6 +6,9 @@
  * seen sha returns the existing job) and compare-and-swap status transitions
  * (an UPDATE guarded by the expected current status, validated against
  * `REVIEW_JOB_TRANSITIONS`).
+ *
+ * It also owns `nomior_review_finding_counts` and serves the review board's
+ * read (`listRecent`), which joins the two.
  */
 import { ThreadId, type IsoDateTime } from "@t3tools/contracts";
 import * as Context from "effect/Context";
@@ -49,6 +52,8 @@ export interface EnqueueReviewJobInput {
   readonly headSha: string;
   readonly riskTier: ReviewJob["riskTier"];
   readonly now: IsoDateTime;
+  /** Human-readable label for the board. The engine never reads it. */
+  readonly title?: string;
 }
 
 /** Idempotent receipt: `created: false` means this sha was already seen. */
@@ -75,6 +80,30 @@ export interface TransitionReviewJobInput {
   };
 }
 
+/**
+ * What the review board renders: the persisted job plus the three columns the
+ * engine has no use for — a human-readable title, the manual-review request
+ * timestamp, and the per-severity finding tally (zeros when no leg has
+ * reported yet).
+ */
+export interface ReviewJobBoardRow extends ReviewJob {
+  readonly title: string | null;
+  readonly manualReviewRequestedAt: IsoDateTime | null;
+  readonly severityCounts: {
+    readonly blocker: number;
+    readonly major: number;
+    readonly minor: number;
+  };
+}
+
+export interface SetFindingCountsInput {
+  readonly jobId: ReviewJobId;
+  readonly blocker: number;
+  readonly major: number;
+  readonly minor: number;
+  readonly now: IsoDateTime;
+}
+
 export interface ReviewJobStoreShape {
   readonly enqueue: (
     input: EnqueueReviewJobInput,
@@ -94,6 +123,26 @@ export interface ReviewJobStoreShape {
     ReviewJob,
     PersistenceSqlError | ReviewJobNotFoundError | ReviewJobTransitionError
   >;
+  /**
+   * The board's read: newest-updated first, `failed` jobs left out because the
+   * board has no column for them.
+   */
+  readonly listRecent: (
+    limit: number,
+  ) => Effect.Effect<ReadonlyArray<ReviewJobBoardRow>, PersistenceSqlError>;
+  /**
+   * Records that a human was asked to look. Idempotent: a repeat request keeps
+   * the original timestamp, and it never touches `status` — see the 006
+   * migration.
+   */
+  readonly requestManualReview: (
+    id: ReviewJobId,
+    now: IsoDateTime,
+  ) => Effect.Effect<ReviewJobBoardRow, PersistenceSqlError | ReviewJobNotFoundError>;
+  /** Replaces the job's tally wholesale; a leg reports all its findings at once. */
+  readonly setFindingCounts: (
+    input: SetFindingCountsInput,
+  ) => Effect.Effect<void, PersistenceSqlError>;
 }
 
 export class ReviewJobStore extends Context.Service<ReviewJobStore, ReviewJobStoreShape>()(
@@ -113,10 +162,20 @@ const ReviewJobRow = Schema.Struct({
   lastStartedAt: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
   verdict: Schema.NullOr(GateDecision),
+  title: Schema.NullOr(Schema.String),
+  manualReviewRequestedAt: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
 type ReviewJobRow = typeof ReviewJobRow.Type;
+
+const ReviewBoardRow = Schema.Struct({
+  ...ReviewJobRow.fields,
+  blocker: Schema.Int,
+  major: Schema.Int,
+  minor: Schema.Int,
+});
+type ReviewBoardRow = typeof ReviewBoardRow.Type;
 
 const targetToRef = (target: ReviewTarget): { refKind: string; refValue: string } =>
   target.kind === "pull-request"
@@ -142,21 +201,41 @@ const rowToJob = (row: ReviewJobRow): ReviewJob => ({
   updatedAt: row.updatedAt,
 });
 
-const ROW_COLUMNS = `
-  id,
-  repo,
-  ref_kind AS "refKind",
-  ref_value AS "refValue",
-  head_sha AS "headSha",
-  status,
-  risk_tier AS "riskTier",
-  attempts,
-  cooldown_until AS "cooldownUntil",
-  last_started_at AS "lastStartedAt",
-  failure_reason AS "failureReason",
-  verdict,
-  created_at AS "createdAt",
-  updated_at AS "updatedAt"
+const rowToBoardRow = (row: ReviewBoardRow): ReviewJobBoardRow => ({
+  ...rowToJob(row),
+  title: row.title,
+  manualReviewRequestedAt: row.manualReviewRequestedAt,
+  severityCounts: { blocker: row.blocker, major: row.major, minor: row.minor },
+});
+
+const jobColumns = (table: string) => `
+  ${table}id,
+  ${table}repo,
+  ${table}ref_kind AS "refKind",
+  ${table}ref_value AS "refValue",
+  ${table}head_sha AS "headSha",
+  ${table}status,
+  ${table}risk_tier AS "riskTier",
+  ${table}attempts,
+  ${table}cooldown_until AS "cooldownUntil",
+  ${table}last_started_at AS "lastStartedAt",
+  ${table}failure_reason AS "failureReason",
+  ${table}verdict,
+  ${table}title,
+  ${table}manual_review_requested_at AS "manualReviewRequestedAt",
+  ${table}created_at AS "createdAt",
+  ${table}updated_at AS "updatedAt"
+`;
+
+const ROW_COLUMNS = jobColumns("");
+
+// `updated_at` lives on both sides of the join, so every job column is
+// qualified. Missing counts row means no leg has reported: zeros, not nulls.
+const BOARD_COLUMNS = `
+  ${jobColumns("j.")},
+  COALESCE(c.blocker, 0) AS blocker,
+  COALESCE(c.major, 0) AS major,
+  COALESCE(c.minor, 0) AS minor
 `;
 
 export const make = Effect.gen(function* () {
@@ -207,6 +286,32 @@ export const make = Effect.gen(function* () {
       `,
   });
 
+  const findBoardRows = SqlSchema.findAll({
+    Request: Schema.Struct({ limit: Schema.Int }),
+    Result: ReviewBoardRow,
+    execute: ({ limit }) =>
+      sql`
+        SELECT ${sql.literal(BOARD_COLUMNS)}
+        FROM nomior_review_jobs j
+        LEFT JOIN nomior_review_finding_counts c ON c.job_id = j.id
+        WHERE j.status <> 'failed'
+        ORDER BY j.updated_at DESC, j.id ASC
+        LIMIT ${limit}
+      `,
+  });
+
+  const findBoardRowById = SqlSchema.findOneOption({
+    Request: Schema.Struct({ id: ReviewJobId }),
+    Result: ReviewBoardRow,
+    execute: ({ id }) =>
+      sql`
+        SELECT ${sql.literal(BOARD_COLUMNS)}
+        FROM nomior_review_jobs j
+        LEFT JOIN nomior_review_finding_counts c ON c.job_id = j.id
+        WHERE j.id = ${id}
+      `,
+  });
+
   const enqueue: ReviewJobStoreShape["enqueue"] = Effect.fn("ReviewJobStore.enqueue")(
     function* (input) {
       const ref = targetToRef(input.target);
@@ -225,12 +330,14 @@ export const make = Effect.gen(function* () {
       INSERT INTO nomior_review_jobs (
         id, repo, ref_kind, ref_value, head_sha,
         status, risk_tier, attempts, cooldown_until, last_started_at,
-        failure_reason, verdict, created_at, updated_at
+        failure_reason, verdict, title, manual_review_requested_at,
+        created_at, updated_at
       )
       VALUES (
         ${id}, ${input.repo}, ${ref.refKind}, ${ref.refValue}, ${input.headSha},
         'queued', ${input.riskTier}, 0, NULL, NULL,
-        NULL, NULL, ${input.now}, ${input.now}
+        NULL, NULL, ${input.title ?? null}, NULL,
+        ${input.now}, ${input.now}
       )
       ON CONFLICT (repo, ref_kind, ref_value, head_sha) DO NOTHING
     `.pipe(Effect.mapError(toPersistenceSqlError("ReviewJobStore.enqueue:insert")));
@@ -337,7 +444,64 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  return ReviewJobStore.of({ enqueue, getById, nextEligible, countStartedSince, transition });
+  const listRecent: ReviewJobStoreShape["listRecent"] = Effect.fn("ReviewJobStore.listRecent")(
+    function* (limit) {
+      const rows = yield* findBoardRows({ limit }).pipe(
+        Effect.mapError(toPersistenceSqlError("ReviewJobStore.listRecent:query")),
+      );
+      return rows.map(rowToBoardRow);
+    },
+  );
+
+  const requestManualReview: ReviewJobStoreShape["requestManualReview"] = Effect.fn(
+    "ReviewJobStore.requestManualReview",
+  )(function* (id, now) {
+    // COALESCE, not a plain assignment: the first request is the one that
+    // counts, so asking twice must not restart the clock. `updated_at` stays
+    // put too — a request is not engine progress and must not reorder the board.
+    const updated = yield* sql<{ readonly id: string }>`
+      UPDATE nomior_review_jobs
+      SET manual_review_requested_at = COALESCE(manual_review_requested_at, ${now})
+      WHERE id = ${id}
+      RETURNING id
+    `.pipe(Effect.mapError(toPersistenceSqlError("ReviewJobStore.requestManualReview:update")));
+    if (updated.length === 0) {
+      return yield* new ReviewJobNotFoundError({ id });
+    }
+
+    const row = yield* findBoardRowById({ id }).pipe(
+      Effect.mapError(toPersistenceSqlError("ReviewJobStore.requestManualReview:query")),
+    );
+    if (Option.isNone(row)) {
+      return yield* new ReviewJobNotFoundError({ id });
+    }
+    return rowToBoardRow(row.value);
+  });
+
+  const setFindingCounts: ReviewJobStoreShape["setFindingCounts"] = Effect.fn(
+    "ReviewJobStore.setFindingCounts",
+  )(function* (input) {
+    yield* sql`
+      INSERT INTO nomior_review_finding_counts (job_id, blocker, major, minor, updated_at)
+      VALUES (${input.jobId}, ${input.blocker}, ${input.major}, ${input.minor}, ${input.now})
+      ON CONFLICT (job_id) DO UPDATE SET
+        blocker = excluded.blocker,
+        major = excluded.major,
+        minor = excluded.minor,
+        updated_at = excluded.updated_at
+    `.pipe(Effect.mapError(toPersistenceSqlError("ReviewJobStore.setFindingCounts:upsert")));
+  });
+
+  return ReviewJobStore.of({
+    enqueue,
+    getById,
+    nextEligible,
+    countStartedSince,
+    transition,
+    listRecent,
+    requestManualReview,
+    setFindingCounts,
+  });
 });
 
 export const layer = Layer.effect(ReviewJobStore, make);

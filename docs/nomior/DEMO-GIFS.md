@@ -24,42 +24,74 @@ in without shifting the layout.
 ## Prerequisites
 
 1. **ffmpeg on PATH** — `brew install ffmpeg` / `apt-get install ffmpeg`.
-2. **Playwright + Chromium.** Deliberately not a normal workspace dependency:
-   the recorder loads it through a dynamic import so a plain `pnpm install`
-   stays lean. Install it when you need to record:
+2. **Playwright + Chromium.** Playwright is a devDependency of the scripts
+   package, loaded through a dynamic import so the test suite never pays for
+   it. `pnpm install` brings the package; the browser binaries are a separate
+   download:
 
    ```sh
-   pnpm --filter @t3tools/scripts add -D playwright
    pnpm --filter @t3tools/scripts exec playwright install chromium
    ```
 
-3. **A running, authenticated app** with the Nomior panels reachable. The
-   panels fall back to sample fixtures (`apps/web/src/nomior/fixtures.ts`) when
-   the RPC port is absent, which is exactly what the demos record — the "Sample
-   data" badge is visible on purpose.
+3. **A running app** with the Nomior panels reachable. The panels fall back to
+   sample fixtures (`apps/web/src/nomior/fixtures.ts`) when the RPC port is
+   absent, which is exactly what the demos record — the "Sample data" badge is
+   visible on purpose.
 
    ```sh
    pnpm dev                 # server + web client on http://127.0.0.1:3000
-   # pair the browser once, then confirm /nomior/review renders
    ```
 
-   The `/nomior` route redirects to `/pair` when the session is not
-   authenticated. The recorder detects that redirect and stops rather than
-   filming the pairing screen.
+4. **A pairing URL** — see below.
+
+## Pairing
+
+Every `/nomior` route redirects to `/pair` until the browser has a session, and
+Playwright starts each run from an empty browser. So the recorder takes a
+pairing URL, pairs once before the first take, and replays that session into
+every recording. It never films the pairing screen.
+
+Mint a URL against the running server:
+
+```sh
+node apps/server/src/bin.ts pair                   # prints "Pairing URL: …"
+node apps/server/src/bin.ts pair --base-dir <dir>  # server started with --home-dir <dir>
+```
+
+Then hand it to the recorder:
+
+```sh
+node scripts/nomior/record-demo-gifs.ts --pair-url "<Pairing URL>"
+```
+
+Three things to know:
+
+- **The token is single-use.** Opening the URL in your own browser first spends
+  it, and so does a previous run. A spent token leaves the recorder on `/pair`
+  and it fails saying so; mint a fresh one. Tokens are also short-lived
+  (5 minutes by default); `pair --ttl 30m` buys more room.
+- **The session belongs to one origin.** `pair` prints the origin the server
+  recorded, which for a worktree dev server is not `http://127.0.0.1:3000`.
+  Pass the same origin as `--base-url`, or the recorder refuses before it opens
+  a browser.
+- **Already paired another way?** Omit `--pair-url`. The recorder still fails
+  loudly if the app bounces it to `/pair`.
 
 ## Recording
 
 ```sh
-node scripts/nomior/record-demo-gifs.ts                      # all four
-node scripts/nomior/record-demo-gifs.ts --only review-board  # one
-node scripts/nomior/record-demo-gifs.ts --headed             # watch it drive
-node scripts/nomior/record-demo-gifs.ts --keep-videos        # keep the .webm
+node scripts/nomior/record-demo-gifs.ts --pair-url "<url>"                      # all four
+node scripts/nomior/record-demo-gifs.ts --pair-url "<url>" --only review-board  # one
+node scripts/nomior/record-demo-gifs.ts --pair-url "<url>" --headed             # watch it drive
+node scripts/nomior/record-demo-gifs.ts --pair-url "<url>" --keep-videos        # keep the .webm
 ```
 
 | Flag / env             | Effect                                                        |
 | ---------------------- | ------------------------------------------------------------- |
 | `--base-url <url>`     | Where the app is (default `http://127.0.0.1:3000`)            |
 | `NOMIOR_DEMO_BASE_URL` | Same, from the environment; the flag wins                     |
+| `--pair-url <url>`     | Pairing URL from `t3 pair`; spent once, before the first take |
+| `NOMIOR_DEMO_PAIR_URL` | Same, from the environment; the flag wins                     |
 | `--only a,b`           | Record a subset; `.gif` optional; an unknown name is an error |
 | `--out-dir <dir>`      | Override `apps/nomior-landing/public/demos`                   |
 | `--headed`             | Run Chromium headed                                           |
@@ -96,5 +128,7 @@ Two causes, one rule:
   name green; the file name is a promise about what the GIF shows.
 
 `scripts/nomior/record-demo-gifs.test.ts` covers the manifest shape, the CLI
-parsing and the failure messages, and runs in the normal suite
-(`vp run --filter @t3tools/scripts test`) with no browser.
+parsing, the failure messages and the pairing pass — that it happens once per
+run and that its session reaches every take — against a fake browser. It runs
+in the normal suite (`vp run --filter @t3tools/scripts test`) with no browser
+and no ffmpeg.

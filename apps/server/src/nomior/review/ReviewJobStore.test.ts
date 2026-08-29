@@ -191,6 +191,102 @@ describe("ReviewJobStore", () => {
     }).pipe(Effect.provide(TestLayer)),
   );
 
+  it.effect("enqueue round-trips an optional board title", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+
+      yield* store.enqueue({ ...enqueueInput, title: "fix(web): board title" });
+      yield* store.enqueue({ ...enqueueInput, headSha: "def456", now: t1 });
+
+      const board = yield* store.listRecent(10);
+      const titled = board.find((row) => row.headSha === "abc123");
+      const untitled = board.find((row) => row.headSha === "def456");
+      assert.strictEqual(titled?.title, "fix(web): board title");
+      assert.strictEqual(untitled?.title, null);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("listRecent orders by updated_at desc and hides failed jobs", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+
+      const first = yield* store.enqueue(enqueueInput);
+      const second = yield* store.enqueue({ ...enqueueInput, headSha: "def456", now: t1 });
+      const third = yield* store.enqueue({ ...enqueueInput, headSha: "ghi789", now: t1 });
+
+      // The oldest job is touched last, so it must lead the board.
+      const t2 = "2026-08-29T10:10:00.000Z";
+      yield* store.transition({ id: first.job.id, from: "queued", to: "reviewing", now: t2 });
+
+      // second and third tie on updated_at, so id breaks the tie: total order.
+      const tied = [second.job.id, third.job.id].sort();
+      const board = yield* store.listRecent(10);
+      assert.deepStrictEqual(
+        board.map((row) => row.id),
+        [first.job.id, ...tied],
+      );
+
+      // A failed job leaves the board entirely; the rest keep their order.
+      yield* store.transition({ id: first.job.id, from: "reviewing", to: "failed", now: t2 });
+      const afterFailure = yield* store.listRecent(10);
+      assert.isFalse(afterFailure.some((row) => row.id === first.job.id));
+      assert.strictEqual(afterFailure.length, 2);
+
+      assert.strictEqual((yield* store.listRecent(1)).length, 1);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("listRecent reports zero counts until a leg reports", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+      const { job } = yield* store.enqueue(enqueueInput);
+
+      const before = yield* store.listRecent(10);
+      assert.deepStrictEqual(before[0]?.severityCounts, { blocker: 0, major: 0, minor: 0 });
+
+      yield* store.setFindingCounts({ jobId: job.id, blocker: 1, major: 2, minor: 3, now: t1 });
+      const after = yield* store.listRecent(10);
+      assert.deepStrictEqual(after[0]?.severityCounts, { blocker: 1, major: 2, minor: 3 });
+
+      // The upsert replaces the tally wholesale rather than accumulating.
+      yield* store.setFindingCounts({ jobId: job.id, blocker: 0, major: 0, minor: 5, now: t1 });
+      const replaced = yield* store.listRecent(10);
+      assert.deepStrictEqual(replaced[0]?.severityCounts, { blocker: 0, major: 0, minor: 5 });
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("requestManualReview is idempotent and never touches status", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+      const { job } = yield* store.enqueue(enqueueInput);
+      yield* store.transition({ id: job.id, from: "queued", to: "reviewing", now: t0 });
+
+      const requested = yield* store.requestManualReview(job.id, t1);
+      assert.strictEqual(requested.manualReviewRequestedAt, t1);
+      assert.strictEqual(requested.status, "reviewing");
+
+      const again = yield* store.requestManualReview(job.id, "2026-08-29T12:00:00.000Z");
+      assert.deepStrictEqual(again, requested);
+
+      // The engine's own view of the job is untouched: same status, same clock.
+      const stored = yield* store.getById(job.id);
+      assert.isTrue(Option.isSome(stored));
+      if (Option.isNone(stored)) return;
+      assert.strictEqual(stored.value.status, "reviewing");
+      assert.strictEqual(stored.value.updatedAt, t0);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("requestManualReview fails with not-found for unknown jobs", () =>
+    Effect.gen(function* () {
+      const store = yield* ReviewJobStore.ReviewJobStore;
+      const error = yield* store
+        .requestManualReview(ReviewJobId.make("missing"), t1)
+        .pipe(Effect.flip);
+      assert.strictEqual(error._tag, "NomiorReviewJobNotFoundError");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
   it.effect("transition preserves omitted columns and clears only on explicit null", () =>
     Effect.gen(function* () {
       const store = yield* ReviewJobStore.ReviewJobStore;

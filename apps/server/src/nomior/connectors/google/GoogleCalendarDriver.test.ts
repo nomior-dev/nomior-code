@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { CalendarEventStore, type StoredCalendarEvent } from "../calendar/CalendarEventStore.ts";
 import { ConnectorSyncError } from "../Errors.ts";
 import { ConnectorAccountId } from "../Records.ts";
 import { GoogleCalendarDriver } from "./GoogleCalendarDriver.ts";
@@ -68,6 +69,29 @@ const makeTokenPortFake = (): TokenPortFake => {
   };
 };
 
+interface EventStoreFake {
+  readonly layer: Layer.Layer<CalendarEventStore>;
+  readonly upserted: Array<StoredCalendarEvent>;
+  readonly deleted: Array<ConnectorAccountId>;
+}
+
+const makeEventStoreFake = (): EventStoreFake => {
+  const upserted: Array<StoredCalendarEvent> = [];
+  const deleted: Array<ConnectorAccountId> = [];
+  return {
+    upserted,
+    deleted,
+    layer: Layer.succeed(
+      CalendarEventStore,
+      CalendarEventStore.of({
+        upsertMany: (events) => Effect.sync(() => void upserted.push(...events)),
+        listWindow: () => Effect.succeed([]),
+        deleteForAccount: (accountId) => Effect.sync(() => void deleted.push(accountId)),
+      }),
+    ),
+  };
+};
+
 const calendarPortLayer = (
   handler: (
     input: GoogleCalendarListInput,
@@ -121,6 +145,7 @@ it.effect("advances the sync token across pages and flags recurring series", () 
         calendarPortLayerWithCapture(),
         makeVaultFake([[accountA, tokenSet("a")]]).layer,
         makeTokenPortFake().layer,
+        makeEventStoreFake().layer,
       ),
     ),
   ),
@@ -174,6 +199,7 @@ it.effect("performs a full resync on 410 GONE and reports the invalidated cursor
         ),
         makeVaultFake([[accountA, tokenSet("a")]]).layer,
         makeTokenPortFake().layer,
+        makeEventStoreFake().layer,
       ),
     ),
   ),
@@ -193,6 +219,7 @@ it.effect("surfaces non-invalidation API failures as ConnectorSyncError", () =>
         ),
         makeVaultFake([[accountA, tokenSet("a")]]).layer,
         makeTokenPortFake().layer,
+        makeEventStoreFake().layer,
       ),
     ),
   ),
@@ -205,6 +232,7 @@ it.effect("isolates accounts: separate data, credentials, and revocation", () =>
       [accountB, tokenSet("b")],
     ]);
     const tokenPort = makeTokenPortFake();
+    const eventStore = makeEventStoreFake();
     const layers = Layer.mergeAll(
       calendarPortLayer((input) =>
         Effect.succeed({
@@ -214,6 +242,7 @@ it.effect("isolates accounts: separate data, credentials, and revocation", () =>
       ),
       vault.layer,
       tokenPort.layer,
+      eventStore.layer,
     );
 
     yield* Effect.gen(function* () {
@@ -235,12 +264,90 @@ it.effect("isolates accounts: separate data, credentials, and revocation", () =>
       assert.isFalse(vault.store.has(accountA));
       assert.isTrue(vault.store.has(accountB));
       assert.deepEqual(tokenPort.revoked, ["refresh-a"]);
+      // The grid stops showing a disconnected account.
+      assert.deepEqual(eventStore.deleted, [accountA]);
 
       const healthA = yield* instanceA.health;
       const healthB = yield* instanceB.health;
       assert.strictEqual(healthA._tag, "unauthorized");
       assert.strictEqual(healthB._tag, "ok");
     }).pipe(Effect.scoped, Effect.provide(layers));
+  }),
+);
+
+it.effect("stores timed events for the grid without touching context records", () =>
+  Effect.gen(function* () {
+    const eventStore = makeEventStoreFake();
+    yield* Effect.gen(function* () {
+      const instance = yield* makeInstance(accountA);
+      const result = yield* instance.sync({ cursor: null });
+
+      // Both surfaces see the timed events; only the grid drops the all-day one.
+      assert.deepEqual(
+        result.records.map((record) => record.source.sourceId),
+        ["event:timed", "event:all-day", "event:recurring"],
+      );
+      assert.deepEqual(eventStore.upserted, [
+        {
+          id: "timed",
+          accountId: accountA,
+          title: "Design review",
+          // Written back as UTC with milliseconds regardless of the offset
+          // Google sent, because the window query compares strings.
+          start: "2026-08-29T09:30:00.000Z",
+          end: "2026-08-29T10:00:00.000Z",
+          recurringSeriesId: null,
+          meetingId: null,
+          hasTranscript: false,
+          hasNotes: false,
+        },
+        {
+          id: "recurring",
+          accountId: accountA,
+          title: "",
+          start: "2026-08-30T09:00:00.000Z",
+          end: "2026-08-30T09:15:00.000Z",
+          recurringSeriesId: "series-9",
+          meetingId: null,
+          hasTranscript: false,
+          hasNotes: false,
+        },
+      ]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          calendarPortLayer(() =>
+            Effect.succeed({
+              items: [
+                {
+                  id: "timed",
+                  summary: "Design review",
+                  start: { dateTime: "2026-08-29T11:30:00+02:00" },
+                  end: { dateTime: "2026-08-29T12:00:00+02:00" },
+                },
+                {
+                  id: "all-day",
+                  summary: "Company offsite",
+                  start: { date: "2026-08-29" },
+                  end: { date: "2026-08-30" },
+                },
+                {
+                  id: "recurring",
+                  recurringEventId: "series-9",
+                  start: { dateTime: "2026-08-30T09:00:00.000Z" },
+                  end: { dateTime: "2026-08-30T09:15:00.000Z" },
+                },
+              ],
+              nextSyncToken: "sync-1",
+            }),
+          ),
+          makeVaultFake([[accountA, tokenSet("a")]]).layer,
+          makeTokenPortFake().layer,
+          eventStore.layer,
+        ),
+      ),
+    );
   }),
 );
 
@@ -267,6 +374,7 @@ it.effect("vault errors degrade probe and health instead of failing", () =>
           calendarPortLayer(() => Effect.succeed({ items: [], nextSyncToken: "s" })),
           brokenVault,
           makeTokenPortFake().layer,
+          makeEventStoreFake().layer,
         ),
       ),
     );

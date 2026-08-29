@@ -1,5 +1,21 @@
 const NIGHTLY_SERVER_VERSION_PATTERN = /-nightly\.\d{8}\.\d+$/;
 
+/**
+ * Splits a base name into the brand lockup's two halves: the name carries the
+ * emphasis, the trailing product word is set muted beside it ("Nomior" +
+ * "Code"). A single-word base name has no muted half.
+ */
+export function splitBrandLockup(baseName: string): {
+  readonly name: string;
+  readonly product: string | null;
+} {
+  const trimmed = baseName.trim();
+  const lastSpace = trimmed.lastIndexOf(" ");
+  return lastSpace === -1
+    ? { name: trimmed, product: null }
+    : { name: trimmed.slice(0, lastSpace), product: trimmed.slice(lastSpace + 1) };
+}
+
 export function formatAppDisplayName(input: {
   readonly baseName: string;
   readonly stageLabel: string;

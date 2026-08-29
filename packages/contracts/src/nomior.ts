@@ -82,7 +82,20 @@ export type NomiorReviewRequestManualInput = typeof NomiorReviewRequestManualInp
 // Context & memory
 // ---------------------------------------------------------------------------
 
-export const NomiorContextSourceKind = Schema.Literals(["meeting", "document", "thread", "review"]);
+/**
+ * The retrieval port's own source kinds (`ContextSourceKind` in
+ * `apps/server/src/nomior/context/RetrievalPort.ts`). Kept identical to the
+ * engine's vocabulary rather than a friendlier invented one, so a snippet
+ * never has to be relabelled on the way to the panel.
+ */
+export const NomiorContextSourceKind = Schema.Literals([
+  "meeting",
+  "decision",
+  "memory",
+  "document",
+  "mail",
+  "event",
+]);
 export type NomiorContextSourceKind = typeof NomiorContextSourceKind.Type;
 
 export const NomiorContextSnippet = Schema.Struct({

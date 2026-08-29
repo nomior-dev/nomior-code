@@ -38,6 +38,8 @@
  */
 import * as Layer from "effect/Layer";
 
+import * as CalendarEventStore from "./connectors/calendar/CalendarEventStore.ts";
+import * as ConnectorAccountStore from "./connectors/ConnectorAccountStore.ts";
 import { ConnectorContextIngestLive } from "./connectors/ContextIngestAdapter.ts";
 import { ContextBrokerLive } from "./context/ContextBroker.ts";
 import { ContextRetrievalPortLive } from "./context/RetrievalPortLive.ts";
@@ -48,6 +50,7 @@ import { ReviewPublisher } from "./review/ReviewPublisher.ts";
 import * as ReviewJobStore from "./review/ReviewJobStore.ts";
 import * as InstanceScheduler from "./scheduler/InstanceScheduler.ts";
 import * as RateLimitObserver from "./scheduler/RateLimitObserver.ts";
+import * as SchedulerPreferences from "./scheduler/SchedulerPreferences.ts";
 
 /**
  * Context engine + memory candidates + the MCP retrieval port, sharing one
@@ -74,6 +77,7 @@ export const NomiorConnectorIngestLive = ConnectorContextIngestLive.pipe(
  */
 export const NomiorSchedulerLive = InstanceScheduler.layer.pipe(
   Layer.provideMerge(RateLimitObserver.layer),
+  Layer.provideMerge(SchedulerPreferences.layer),
   Layer.provide(InstanceScheduler.InstanceSchedulerConfig.layerDefault),
 );
 
@@ -96,4 +100,26 @@ export const NomiorReviewPortsLive = Layer.mergeAll(
   LegRunnerLive.pipe(Layer.provide(LegLauncher.layerHandOff)),
   ReviewPublisher.layerNoop,
   MemoryCandidateSinkLive,
+);
+
+/**
+ * Everything the `/nomior` panels read over RPC, in one layer for `ws.ts` to
+ * provide. Requires only `SqlClient`.
+ *
+ * Deliberately NOT `NomiorReviewPortsLive`: the board reads and annotates jobs,
+ * it never runs a leg or publishes a verdict, so it needs `ReviewJobStore`
+ * alone. Pulling in the full review ports would drag `LegRunnerLive` and its
+ * `ProviderInstanceRegistry` and `InstanceScheduler` dependencies into every
+ * WebSocket connection for no read the panels perform.
+ *
+ * The calendar and connector-account stores are here rather than in
+ * `NomiorConnectorIngestLive` because the panels read them without any sync
+ * running; a connector that never fires still has accounts to list.
+ */
+export const NomiorPanelRpcLive = Layer.mergeAll(
+  NomiorContextLive,
+  NomiorSchedulerLive,
+  ReviewJobStore.layer,
+  CalendarEventStore.layer,
+  ConnectorAccountStore.layer,
 );

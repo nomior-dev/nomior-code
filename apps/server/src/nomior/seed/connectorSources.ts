@@ -11,6 +11,7 @@
 import {
   ConnectorAccountId,
   ConnectorDriverKind,
+  GOOGLE_CALENDAR_DRIVER_KIND,
   type ConnectorSource,
 } from "../connectors/Records.ts";
 
@@ -23,7 +24,6 @@ import {
 } from "./scenario.ts";
 
 const ANARLOG_DRIVER = ConnectorDriverKind.make("anarlog");
-const GOOGLE_CALENDAR_DRIVER = ConnectorDriverKind.make("googleCalendar");
 const ANARLOG_ACCOUNT = ConnectorAccountId.make(seedAnarlogAccount.accountId);
 
 export const transcriptConnectorSource = (meeting: SeedMeeting): ConnectorSource => ({
@@ -58,7 +58,7 @@ export const calendarConnectorSource = (event: SeedCalendarEvent): ConnectorSour
     ...(event.recurringSeriesId === null ? {} : { recurringSeriesId: event.recurringSeriesId }),
   },
   provenance: {
-    driverKind: GOOGLE_CALENDAR_DRIVER,
+    driverKind: GOOGLE_CALENDAR_DRIVER_KIND,
     accountId: ConnectorAccountId.make(event.accountId),
     externalId: event.eventId,
   },

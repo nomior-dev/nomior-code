@@ -14,6 +14,7 @@ import * as Layer from "effect/Layer";
 import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as InstanceScheduler from "./InstanceScheduler.ts";
 import * as RateLimitObserver from "./RateLimitObserver.ts";
+import * as SchedulerPreferences from "./SchedulerPreferences.ts";
 import type { NomiorSchedulerSettings, SchedulerDecision } from "./Schemas.ts";
 
 const claudeDriver = ProviderDriverKind.make("claudeAgent");
@@ -30,6 +31,7 @@ const makeTestLayer = (settings?: Partial<NomiorSchedulerSettings>) =>
   InstanceScheduler.layer.pipe(
     Layer.provide(InstanceScheduler.InstanceSchedulerConfig.layerStatic(settings)),
     Layer.provideMerge(RateLimitObserver.layer),
+    Layer.provideMerge(SchedulerPreferences.layer),
     Layer.provideMerge(SqlitePersistenceMemory),
     Layer.provideMerge(NodeServices.layer),
   );

@@ -21,6 +21,7 @@ import {
   DEFAULT_BUDGET_TOKENS,
   enforceBudget,
   formatCitation,
+  parseCitation,
   rrfFuse,
   truncationNotice,
 } from "./Retrieval.ts";
@@ -149,6 +150,31 @@ describe("formatCitation", () => {
       }),
       '"Launch sync" (meeting, 2026-08-12) §3 [src/2]',
     );
+  });
+});
+
+describe("parseCitation", () => {
+  const roundTrip = (title: string, occurredAt: string | null) => {
+    const parsed = parseCitation(
+      formatCitation({ title, sourceKind: "document", occurredAt, ordinal: 4, chunkId: "src/4" }),
+    );
+    assert.deepStrictEqual(parsed, { title, ordinal: 4, chunkId: "src/4" });
+  };
+
+  it("reads back a citation it formatted", () => {
+    roundTrip("Launch sync", "2026-08-12T10:00:00.000Z");
+  });
+
+  it("reads back an undated citation", () => {
+    roundTrip("Launch sync", null);
+  });
+
+  it("keeps a title that contains the citation's own punctuation", () => {
+    roundTrip('Mix review — "EP master" (final) §2 [notes]', "2026-08-12T10:00:00.000Z");
+  });
+
+  it("returns null for a string it did not format", () => {
+    assert.strictEqual(parseCitation("Launch sync"), null);
   });
 });
 

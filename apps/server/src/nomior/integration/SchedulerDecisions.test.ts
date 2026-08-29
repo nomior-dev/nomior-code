@@ -35,6 +35,7 @@ import {
   layer as InstanceSchedulerLayer,
 } from "../scheduler/InstanceScheduler.ts";
 import * as RateLimitObserver from "../scheduler/RateLimitObserver.ts";
+import * as SchedulerPreferences from "../scheduler/SchedulerPreferences.ts";
 import type { NomiorSchedulerSettings } from "../scheduler/Schemas.ts";
 
 const codexDriver = ProviderDriverKind.make("codex");
@@ -95,6 +96,7 @@ const makeLayer = (settings?: Partial<NomiorSchedulerSettings>) =>
     Layer.provide(LegLauncher.layerHandOff),
     Layer.provideMerge(InstanceSchedulerLayer),
     Layer.provideMerge(RateLimitObserver.layer),
+    Layer.provideMerge(SchedulerPreferences.layer),
     Layer.provide(InstanceSchedulerConfig.layerStatic(settings)),
     Layer.provide(registryStub),
     Layer.provideMerge(SqlitePersistenceMemory),

@@ -193,6 +193,28 @@ export const formatCitation = (snippet: {
   return `"${snippet.title}" (${snippet.sourceKind}${dated}) §${snippet.ordinal + 1} [${snippet.chunkId}]`;
 };
 
+/**
+ * The suffix `formatCitation` appends. Anchored at the end so the greedy title
+ * group swallows any quote the title itself contains.
+ */
+const CITATION_PATTERN = /^"(.*)" \([^()]*\) §(\d+) \[(.+)\]$/s;
+
+/**
+ * Reads a citation back apart. Callers that render a citation for a human — the
+ * panels, which already show kind and date in their own columns — want the bare
+ * title, and getting it from here rather than from a second port field keeps the
+ * MCP response (where every field is charged against a token budget) unchanged.
+ *
+ * Returns `null` for a string this module did not format.
+ */
+export const parseCitation = (
+  citation: string,
+): { readonly title: string; readonly ordinal: number; readonly chunkId: string } | null => {
+  const match = CITATION_PATTERN.exec(citation);
+  if (match === null) return null;
+  return { title: match[1]!, ordinal: Number(match[2]!) - 1, chunkId: match[3]! };
+};
+
 // ===============================
 // Service
 // ===============================

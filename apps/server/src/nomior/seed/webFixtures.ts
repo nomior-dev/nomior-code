@@ -174,7 +174,7 @@ export const generatedCalendarEvents = (): ReadonlyArray<GeneratedCalendarEvent>
 export interface GeneratedContextSnippet {
   readonly id: string;
   readonly sourceTitle: string;
-  readonly sourceKind: "meeting" | "document" | "thread" | "review";
+  readonly sourceKind: "meeting" | "decision" | "memory" | "document" | "mail" | "event";
   readonly sourceDate: string;
   readonly excerpt: string;
   readonly score: number;
@@ -208,7 +208,7 @@ export const generatedContextSnippets = (): ReadonlyArray<GeneratedContextSnippe
       .map((finding, index) => ({
         id: `ctx-${job.jobId}-f${index}`,
         sourceTitle: `Review #${job.pullRequestNumber} — ${job.pullRequestTitle}`,
-        sourceKind: "review" as const,
+        sourceKind: "memory" as const,
         sourceDate: job.updatedAt.slice(0, 10),
         excerpt: `Finding (${finding.severity}): ${finding.summary} — ${finding.file}:${finding.line}`,
       })),

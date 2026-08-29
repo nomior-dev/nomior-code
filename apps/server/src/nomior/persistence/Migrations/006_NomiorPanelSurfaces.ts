@@ -15,14 +15,32 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
+  /**
+   * SQLite has no `ADD COLUMN IF NOT EXISTS`. The ledger already stops a second
+   * real run, but every migration body must also survive a bare replay — that
+   * is what `Migrations.test.ts` asserts, and it is the property that lets a
+   * half-applied migration be re-driven by hand.
+   */
+  const addColumn = Effect.fn("nomior.migration.addColumn")(function* (
+    table: string,
+    column: string,
+    definition: string,
+  ) {
+    const existing = yield* sql<{ readonly name: string }>`
+      SELECT name FROM pragma_table_info(${table}) WHERE name = ${column}
+    `;
+    if (existing.length > 0) return;
+    yield* sql.unsafe(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  });
+
   // --- Review board -------------------------------------------------------
   // Title is what a human recognises the job by; the engine never reads it.
-  yield* sql`ALTER TABLE nomior_review_jobs ADD COLUMN title TEXT`;
+  yield* addColumn("nomior_review_jobs", "title", "TEXT");
 
   // A manual-review request is a user asking a human to look, not a state
   // change: it must not disturb the engine's state machine, so it is its own
   // nullable timestamp rather than a `status` value.
-  yield* sql`ALTER TABLE nomior_review_jobs ADD COLUMN manual_review_requested_at TEXT`;
+  yield* addColumn("nomior_review_jobs", "manual_review_requested_at", "TEXT");
 
   // Per-severity finding counts, replaced wholesale each time a leg reports.
   // Counts rather than rows: the board only ever renders the tally, and the

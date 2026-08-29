@@ -21,6 +21,7 @@ import Migration0003 from "./Migrations/003_NomiorContextBroker.ts";
 import Migration0004 from "./Migrations/004_NomiorConnectorTables.ts";
 import Migration0005 from "./Migrations/005_NomiorMemoryCandidates.ts";
 import Migration0006 from "./Migrations/006_NomiorPanelSurfaces.ts";
+import Migration0007 from "./Migrations/007_NomiorSchedulerPreferences.ts";
 
 export const nomiorMigrationEntries = [
   [1, "NomiorSchedulerState", Migration0001],
@@ -29,6 +30,7 @@ export const nomiorMigrationEntries = [
   [4, "NomiorConnectorTables", Migration0004],
   [5, "NomiorMemoryCandidates", Migration0005],
   [6, "NomiorPanelSurfaces", Migration0006],
+  [7, "NomiorSchedulerPreferences", Migration0007],
 ] as const;
 
 const loader = Migrator.fromRecord(

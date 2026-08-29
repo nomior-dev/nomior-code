@@ -21,6 +21,7 @@ import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
 import { toPersistenceSqlError, type PersistenceSqlError } from "../../persistence/Errors.ts";
 import { RateLimitObserver } from "./RateLimitObserver.ts";
+import { SchedulerPreferences } from "./SchedulerPreferences.ts";
 import {
   DEFAULT_NOMIOR_SCHEDULER_SETTINGS,
   instanceHeadroom,
@@ -84,6 +85,7 @@ const GetAssignmentInput = Schema.Struct({ projectId: Schema.String });
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const observer = yield* RateLimitObserver;
+  const preferences = yield* SchedulerPreferences;
   const config = yield* InstanceSchedulerConfig;
   const roundRobinCursor = yield* Ref.make(0);
 
@@ -141,6 +143,14 @@ export const make = Effect.gen(function* () {
       reason: string,
     ) {
       yield* rememberChoice(input.projectId, instanceId);
+      // Every rule funnels through here, so recording the decision once here is
+      // what keeps the instances panel's "last decision" honest — it shows the
+      // same reason string the caller gets back, never a reconstruction.
+      yield* preferences.recordDecision({
+        instanceId,
+        reason,
+        decidedAt: DateTime.formatIso(yield* DateTime.now),
+      });
       return { kind: "choice", instanceId, rule, reason } as const;
     });
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   resolveServerBackedAppDisplayName,
   resolveServerBackedAppStageLabel,
+  splitBrandLockup,
 } from "./branding.logic";
 
 const originalWindow = globalThis.window;
@@ -113,5 +114,22 @@ describe("branding logic", () => {
         primaryServerVersion: "0.0.28-nightly.20260616",
       }),
     ).toBe("T3 Code (Alpha)");
+  });
+});
+
+describe("splitBrandLockup", () => {
+  it("splits the product word off the name", () => {
+    expect(splitBrandLockup(NOMIOR_PRODUCT_NAME)).toEqual({ name: "Nomior", product: "Code" });
+  });
+
+  it("keeps a single-word base name whole", () => {
+    expect(splitBrandLockup("Nomior")).toEqual({ name: "Nomior", product: null });
+  });
+
+  it("splits only on the last space so multi-word names survive", () => {
+    expect(splitBrandLockup("Nomior Code Nightly")).toEqual({
+      name: "Nomior Code",
+      product: "Nightly",
+    });
   });
 });

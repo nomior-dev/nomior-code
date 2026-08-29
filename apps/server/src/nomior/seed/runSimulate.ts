@@ -20,6 +20,7 @@ import {
 import { MemoryCandidateSinkLive } from "../memory/ReviewSinkLive.ts";
 import * as ReviewJobStore from "../review/ReviewJobStore.ts";
 import * as InstanceScheduler from "../scheduler/InstanceScheduler.ts";
+import * as SchedulerPreferences from "../scheduler/SchedulerPreferences.ts";
 import { DeterministicSeedRuntime } from "./deterministic.ts";
 import { SEED_NOW } from "./scenario.ts";
 import { NomiorSeedServices, seedNomior } from "./seed.ts";
@@ -41,6 +42,7 @@ const SimulationServices = Layer.mergeAll(
   MemoryCandidateSinkLive,
   InstanceScheduler.layer.pipe(
     Layer.provide(InstanceScheduler.InstanceSchedulerConfig.layerStatic({ enabled: true })),
+    Layer.provideMerge(SchedulerPreferences.layer),
   ),
 ).pipe(Layer.provideMerge(NomiorSeedServices));
 

@@ -9,12 +9,16 @@ export function sourceKindLabel(kind: ContextSourceKind): string {
   switch (kind) {
     case "meeting":
       return "Meeting";
+    case "decision":
+      return "Decision";
+    case "memory":
+      return "Memory";
     case "document":
       return "Document";
-    case "thread":
-      return "Thread";
-    case "review":
-      return "Review";
+    case "mail":
+      return "Email";
+    case "event":
+      return "Event";
   }
 }
 

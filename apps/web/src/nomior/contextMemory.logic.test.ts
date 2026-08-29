@@ -22,9 +22,11 @@ const candidate = (overrides: Partial<MemoryCandidate>): MemoryCandidate => ({
 describe("sourceKindLabel", () => {
   it("labels every source kind", () => {
     expect(sourceKindLabel("meeting")).toBe("Meeting");
+    expect(sourceKindLabel("decision")).toBe("Decision");
+    expect(sourceKindLabel("memory")).toBe("Memory");
     expect(sourceKindLabel("document")).toBe("Document");
-    expect(sourceKindLabel("thread")).toBe("Thread");
-    expect(sourceKindLabel("review")).toBe("Review");
+    expect(sourceKindLabel("mail")).toBe("Email");
+    expect(sourceKindLabel("event")).toBe("Event");
   });
 });
 

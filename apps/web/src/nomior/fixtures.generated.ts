@@ -352,7 +352,7 @@ export const generatedFixtures = {
     {
       id: "ctx-rev-104-f0",
       sourceTitle: "Review #96 — feat(catalog): ISRC dedupe pass over delivery feeds",
-      sourceKind: "review",
+      sourceKind: "memory",
       sourceDate: "2026-08-29",
       excerpt: "Finding (critical): The dedupe pass deletes delivery rows before the new ISRC mapping commits; a failed commit loses catalogue rows with no way back. — apps/server/src/catalog/isrcDedupe.ts:214",
       score: 0.55,
@@ -360,7 +360,7 @@ export const generatedFixtures = {
     {
       id: "ctx-rev-106-f0",
       sourceTitle: "Review #379 — feat(agents): unattended portfolio rebalancer",
-      sourceKind: "review",
+      sourceKind: "memory",
       sourceDate: "2026-08-28",
       excerpt: "Finding (critical): Live orders are placed when dryRun is unset: the flag defaults to undefined, which is falsy, not to true. — apps/server/src/agents/rebalancer.ts:132",
       score: 0.51,
@@ -368,7 +368,7 @@ export const generatedFixtures = {
     {
       id: "ctx-rev-106-f1",
       sourceTitle: "Review #379 — feat(agents): unattended portfolio rebalancer",
-      sourceKind: "review",
+      sourceKind: "memory",
       sourceDate: "2026-08-28",
       excerpt: "Finding (critical): Broker credentials are read from the environment and written into the retry log alongside the request payload. — apps/server/src/agents/rebalancer.ts:288",
       score: 0.47,

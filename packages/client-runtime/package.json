@@ -75,6 +75,10 @@
       "types": "./src/state/models.ts",
       "default": "./src/state/models.ts"
     },
+    "./state/nomior": {
+      "types": "./src/state/nomior.ts",
+      "default": "./src/state/nomior.ts"
+    },
     "./state/orchestration": {
       "types": "./src/state/orchestration.ts",
       "default": "./src/state/orchestration.ts"

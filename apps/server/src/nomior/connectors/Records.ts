@@ -27,6 +27,13 @@ export const ConnectorDriverKind = slugSchema.pipe(Schema.brand("ConnectorDriver
 export type ConnectorDriverKind = typeof ConnectorDriverKind.Type;
 
 /**
+ * The one Google Calendar slug. Named here rather than spelled at each use
+ * site: a driver kind is matched by equality, so a second spelling does not
+ * fail — it silently matches nothing.
+ */
+export const GOOGLE_CALENDAR_DRIVER_KIND = ConnectorDriverKind.make("googleCalendar");
+
+/**
  * One connected account of a driver. Multiple accounts per driver are first
  * class (two Google accounts, two Anarlog store paths); branded separately
  * from `ConnectorDriverKind` so the two can never be confused.

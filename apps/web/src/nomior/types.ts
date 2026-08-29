@@ -1,10 +1,11 @@
 /**
  * Nomior panel domain types.
  *
- * These are the client-side shapes the Nomior panels render. They are local to
- * the web app while the server RPC surface is still landing; once the Nomior
- * RPC group exists in `@t3tools/contracts`, these types should be replaced by
- * the schema-derived wire types and the fixture port by an RPC-backed port.
+ * These are the client-side shapes the Nomior panels render. They stay
+ * structurally identical to the `Nomior*` wire types in `@t3tools/contracts`,
+ * which is what lets `rpcPort.ts` unwrap a response envelope and hand the
+ * result straight to a panel; the port's return annotations turn any future
+ * divergence into a build error rather than a runtime surprise.
  *
  * @module nomior/types
  */
@@ -50,7 +51,8 @@ export interface ReviewJob {
 // Context & memory
 // ---------------------------------------------------------------------------
 
-export type ContextSourceKind = "meeting" | "document" | "thread" | "review";
+/** Mirrors the retrieval port's source kinds; the engine owns this vocabulary. */
+export type ContextSourceKind = "meeting" | "decision" | "memory" | "document" | "mail" | "event";
 
 export interface ContextSnippet {
   readonly id: string;

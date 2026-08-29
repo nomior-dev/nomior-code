@@ -21,6 +21,7 @@ import {
   layer as InstanceSchedulerLayer,
 } from "../scheduler/InstanceScheduler.ts";
 import * as RateLimitObserver from "../scheduler/RateLimitObserver.ts";
+import * as SchedulerPreferences from "../scheduler/SchedulerPreferences.ts";
 import { LegLauncher, LegRunnerLive } from "./LegRunnerLive.ts";
 
 const codexDriver = ProviderDriverKind.make("codex");
@@ -61,6 +62,7 @@ const makeLayer = (instances: ReadonlyArray<ProviderInstance>) =>
     Layer.provide(LegLauncher.layerHandOff),
     Layer.provide(InstanceSchedulerLayer),
     Layer.provide(RateLimitObserver.layer),
+    Layer.provide(SchedulerPreferences.layer),
     Layer.provide(InstanceSchedulerConfig.layerDefault),
     Layer.provide(registryStub(instances)),
     Layer.provide(SqlitePersistenceMemory),

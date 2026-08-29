@@ -36,6 +36,7 @@ import type { NomiorContextError } from "../context/Model.ts";
 import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import * as RateLimitObserver from "../scheduler/RateLimitObserver.ts";
 import { seedRateLimitEvents } from "./rateLimitEvents.ts";
+import { severityCounts } from "./webFixtures.ts";
 import {
   SEED_EXTERNAL_ID_PREFIX,
   seedCalendarEvents,
@@ -168,12 +169,14 @@ const seedReviewBoard = Effect.fn("nomiorSeed.reviewBoard")(function* () {
       INSERT INTO nomior_review_jobs (
         id, repo, ref_kind, ref_value, head_sha,
         status, risk_tier, attempts, cooldown_until, last_started_at,
-        failure_reason, verdict, created_at, updated_at
+        failure_reason, verdict, created_at, updated_at,
+        title, manual_review_requested_at
       )
       VALUES (
         ${job.jobId}, ${job.repo}, ${ref.refKind}, ${ref.refValue}, ${job.headSha},
         ${job.status}, ${job.riskTier}, ${job.attempts}, ${null}, ${job.lastStartedAt},
-        ${job.failureReason}, ${job.verdict}, ${job.createdAt}, ${job.updatedAt}
+        ${job.failureReason}, ${job.verdict}, ${job.createdAt}, ${job.updatedAt},
+        ${job.pullRequestTitle}, ${job.manualReviewRequested ? job.updatedAt : null}
       )
       ON CONFLICT (id) DO UPDATE SET
         repo = excluded.repo,
@@ -188,6 +191,20 @@ const seedReviewBoard = Effect.fn("nomiorSeed.reviewBoard")(function* () {
         failure_reason = excluded.failure_reason,
         verdict = excluded.verdict,
         created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        title = excluded.title,
+        manual_review_requested_at = excluded.manual_review_requested_at
+    `;
+
+    // Severity tallies the board renders. Rewritten wholesale, like the job.
+    const counts = severityCounts(job.findings.map((finding) => finding.severity));
+    yield* sql`
+      INSERT INTO nomior_review_finding_counts (job_id, blocker, major, minor, updated_at)
+      VALUES (${job.jobId}, ${counts.blocker}, ${counts.major}, ${counts.minor}, ${job.updatedAt})
+      ON CONFLICT (job_id) DO UPDATE SET
+        blocker = excluded.blocker,
+        major = excluded.major,
+        minor = excluded.minor,
         updated_at = excluded.updated_at
     `;
 
@@ -200,6 +217,34 @@ const seedReviewBoard = Effect.fn("nomiorSeed.reviewBoard")(function* () {
         VALUES (${job.jobId}, ${job.lastStartedAt})
       `;
     }
+  }
+});
+
+const seedCalendar = Effect.fn("nomiorSeed.calendar")(function* () {
+  const sql = yield* SqlClient.SqlClient;
+
+  for (const event of seedCalendarEvents) {
+    yield* sql`
+      INSERT INTO nomior_calendar_events (
+        event_id, account_id, title, starts_at, ends_at,
+        recurring_series_id, meeting_id, has_transcript, has_notes, updated_at
+      )
+      VALUES (
+        ${event.eventId}, ${event.accountId}, ${event.title}, ${event.startsAt}, ${event.endsAt},
+        ${event.recurringSeriesId}, ${event.meetingId},
+        ${event.meetingId === null ? 0 : 1}, ${event.meetingId === null ? 0 : 1},
+        ${event.startsAt}
+      )
+      ON CONFLICT (account_id, event_id) DO UPDATE SET
+        title = excluded.title,
+        starts_at = excluded.starts_at,
+        ends_at = excluded.ends_at,
+        recurring_series_id = excluded.recurring_series_id,
+        meeting_id = excluded.meeting_id,
+        has_transcript = excluded.has_transcript,
+        has_notes = excluded.has_notes,
+        updated_at = excluded.updated_at
+    `;
   }
 });
 
@@ -318,6 +363,7 @@ export const seedNomior = Effect.fn("nomiorSeed")(function* (options: SeedOption
 
   yield* seedMemoryCandidates();
   yield* seedReviewBoard().pipe(Effect.mapError(toPersistenceSqlError("nomiorSeed.reviewBoard")));
+  yield* seedCalendar().pipe(Effect.mapError(toPersistenceSqlError("nomiorSeed.calendar")));
   yield* seedSchedulerState();
 
   const counts = yield* readSeedCounts().pipe(
@@ -340,7 +386,7 @@ export const formatSeedSummary = (summary: SeedSummary): string =>
     `  decisions / tasks  ${summary.decisions} / ${summary.tasks}`,
     `  connector accounts ${summary.connectorAccounts} (${summary.connectorCursors} cursors)`,
     `  memory candidates  ${summary.memoryCandidates} pending`,
-    `  calendar events    ${summary.calendarEvents} (scenario-held: no connector-record store yet)`,
+    `  calendar events    ${summary.calendarEvents}`,
     `  review jobs        ${summary.reviewJobs}`,
     `  rate-limit states  ${summary.rateLimitStates}`,
   ].join("\n");

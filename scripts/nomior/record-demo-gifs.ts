@@ -11,10 +11,14 @@
  * scheduler picking an instance, and a review card crossing the board — and
  * writes them into `apps/nomior-landing/public/demos/`.
  *
+ * The /nomior panels need a paired session, so a run takes a `t3 pair` URL
+ * (`--pair-url`): it pairs once, up front, and replays that session into every
+ * take, because the token in a pairing URL is single-use.
+ *
  * It deliberately refuses to invent anything: no mocked frames, no stitched
- * screenshots. If the app is not running, Playwright is not installed, or a
- * step's target is missing from the UI, the run fails with the command that
- * fixes it. Usage: `docs/nomior/DEMO-GIFS.md`.
+ * screenshots. If the app is not running, the session is not paired, Playwright
+ * is not installed, or a step's target is missing from the UI, the run fails
+ * with the command that fixes it. Usage: `docs/nomior/DEMO-GIFS.md`.
  *
  * The recorder follows `scripts/mobile-showcase.ts`, the repo's existing
  * drive-the-real-app capture pipeline: CLI filters, a fixed scene manifest,
@@ -154,6 +158,8 @@ export class DemoRecorderError extends Error {
 
 export interface CliOptions {
   readonly baseUrl: string;
+  /** A `t3 pair` URL, token and all; absent means "the session is already paired". */
+  readonly pairUrl: string | undefined;
   readonly only: ReadonlySet<string>;
   readonly outDir: string;
   readonly headed: boolean;
@@ -165,6 +171,8 @@ export function parseCliOptions(
   environment: Readonly<Record<string, string | undefined>> = {},
 ): CliOptions {
   let baseUrl = environment.NOMIOR_DEMO_BASE_URL ?? DEFAULT_BASE_URL;
+  const environmentPairUrl = environment.NOMIOR_DEMO_PAIR_URL?.trim();
+  let pairUrl = environmentPairUrl === "" ? undefined : environmentPairUrl;
   let outDir = DEMO_OUTPUT_DIR;
   let headed = false;
   let keepVideos = false;
@@ -183,6 +191,9 @@ export function parseCliOptions(
       case "--base-url":
         baseUrl = next();
         break;
+      case "--pair-url":
+        pairUrl = next();
+        break;
       case "--out-dir":
         outDir = next();
         break;
@@ -200,7 +211,7 @@ export function parseCliOptions(
         break;
       default:
         throw new DemoRecorderError(
-          `Unknown option ${arg}. Supported: --base-url, --out-dir, --only, --headed, --keep-videos.`,
+          `Unknown option ${arg}. Supported: --base-url, --pair-url, --out-dir, --only, --headed, --keep-videos.`,
         );
     }
   }
@@ -212,7 +223,7 @@ export function parseCliOptions(
     );
   }
 
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), only, outDir, headed, keepVideos };
+  return { baseUrl: baseUrl.replace(/\/+$/, ""), pairUrl, only, outDir, headed, keepVideos };
 }
 
 export function selectSpecs(only: ReadonlySet<string>): readonly DemoGifSpec[] {
@@ -239,6 +250,19 @@ export function ffmpegGifArgs(input: string, output: string): readonly string[] 
   ];
 }
 
+/**
+ * `t3 pair` mints against an already-running server and prints `Pairing URL:`.
+ * Every message that asks for a pairing URL says how to get one, because the
+ * token in it is single-use: a URL from an earlier run is already spent.
+ */
+const MINT_PAIR_URL_LINES: readonly string[] = [
+  "  # from the repo root, while the server is running:",
+  '  node apps/server/src/bin.ts pair                   # prints "Pairing URL: …"',
+  "  node apps/server/src/bin.ts pair --base-dir <dir>  # server started with --home-dir <dir>",
+  "",
+  '  node scripts/nomior/record-demo-gifs.ts --pair-url "<Pairing URL>"',
+];
+
 export function appUnreachableMessage(baseUrl: string, reason: string): string {
   return [
     `Nomior Code is not answering at ${baseUrl} (${reason}).`,
@@ -247,8 +271,7 @@ export function appUnreachableMessage(baseUrl: string, reason: string): string {
     "environment first, then re-run:",
     "",
     "  pnpm dev                       # web client + server",
-    "  # sign in / pair once, then open http://127.0.0.1:3000/nomior/review",
-    "  node scripts/nomior/record-demo-gifs.ts",
+    ...MINT_PAIR_URL_LINES,
     "",
     `Point it elsewhere with --base-url <url> or NOMIOR_DEMO_BASE_URL.`,
   ].join("\n");
@@ -258,9 +281,42 @@ export function notPairedMessage(url: string): string {
   return [
     `The app redirected to ${url}: this session is not paired, so the /nomior panels are not reachable.`,
     "",
-    "Pair the browser profile the recorder uses, or run against an environment",
-    "that is already authenticated, then re-run. The recorder never records the",
-    "pairing screen.",
+    "Hand the recorder a pairing URL. It pairs once, before the first take, and",
+    "reuses that session for every demo:",
+    "",
+    ...MINT_PAIR_URL_LINES,
+    "",
+    "NOMIOR_DEMO_PAIR_URL sets the same thing from the environment. The recorder",
+    "never records the pairing screen.",
+  ].join("\n");
+}
+
+export function pairingFailedMessage(currentUrl: string): string {
+  return [
+    `Pairing did not finish: the browser is still on ${currentUrl}.`,
+    "",
+    "A pairing token is single-use and short-lived, so this one was most likely",
+    "already consumed — by an earlier run, or by opening the URL in a browser.",
+    "Mint a fresh one:",
+    "",
+    ...MINT_PAIR_URL_LINES,
+  ].join("\n");
+}
+
+/**
+ * The paired session is stored per browser origin, so a pairing URL minted for
+ * a different origin than `--base-url` would leave every recording unpaired.
+ */
+export function pairOriginMismatchMessage(baseUrl: string, pairUrl: string): string {
+  return [
+    `The pairing URL is for ${new URL(pairUrl).origin}, but the recorder drives ${new URL(baseUrl).origin}.`,
+    "",
+    "A session belongs to the origin it was paired on, so these have to match.",
+    "Either record the origin the token was minted for:",
+    "",
+    `  node scripts/nomior/record-demo-gifs.ts --base-url ${new URL(pairUrl).origin} --pair-url "<Pairing URL>"`,
+    "",
+    "or mint a token against the server that answers on the base URL.",
   ].join("\n");
 }
 
@@ -268,11 +324,11 @@ export function missingPlaywrightMessage(): string {
   return [
     "Playwright is not installed in this workspace.",
     "",
-    "It is an on-demand dependency of the demo pipeline, not of the app, so it is",
-    "loaded through a dynamic import and is absent from a normal install. Add it",
-    "to the scripts package and download a browser:",
+    "It is a devDependency of the scripts package, loaded through a dynamic import",
+    "so the test suite never pays for it. Install the workspace, then the browser —",
+    "the browser binaries are a separate download that `pnpm install` does not do:",
     "",
-    "  pnpm --filter @t3tools/scripts add -D playwright",
+    "  pnpm install",
     "  pnpm --filter @t3tools/scripts exec playwright install chromium",
   ].join("\n");
 }
@@ -311,12 +367,13 @@ export function stepFailureMessage(spec: DemoGifSpec, step: DemoStep, reason: st
 /* ------------------------------------------------------------------ *
  * Playwright seam
  *
- * Typed structurally and imported through a runtime specifier so the repo
- * typechecks and installs without the dependency — the same dynamic-import
- * seam the Google connectors use for `googleapis`.
+ * Typed structurally and imported through a runtime specifier — the same
+ * dynamic-import seam the Google connectors use for `googleapis`. Playwright
+ * is a devDependency of this package, but nothing outside a real recording
+ * should pay to load it, and the browser binaries are a separate download.
  * ------------------------------------------------------------------ */
 
-interface DemoLocator {
+export interface DemoLocator {
   first(): DemoLocator;
   click(options?: { timeout?: number }): Promise<void>;
   pressSequentially(text: string, options?: { delay?: number; timeout?: number }): Promise<void>;
@@ -329,9 +386,10 @@ interface DemoVideo {
   delete(): Promise<void>;
 }
 
-interface DemoPage {
+export interface DemoPage {
   goto(url: string, options?: { waitUntil?: "domcontentloaded" | "load" }): Promise<unknown>;
   url(): string;
+  waitForURL(predicate: (url: URL) => boolean, options?: { timeout?: number }): Promise<void>;
   getByRole(role: string, options?: { name?: string }): DemoLocator;
   getByLabel(name: string, options?: { exact?: boolean }): DemoLocator;
   getByText(text: string, options?: { exact?: boolean }): DemoLocator;
@@ -341,19 +399,32 @@ interface DemoPage {
   close(): Promise<void>;
 }
 
+/** Playwright's serialized cookies and per-origin storage; opaque to the recorder. */
+export interface DemoStorageState {
+  readonly cookies: readonly unknown[];
+  readonly origins: readonly unknown[];
+}
+
 interface DemoContext {
   newPage(): Promise<DemoPage>;
+  storageState(options?: { indexedDB?: boolean }): Promise<DemoStorageState>;
   close(): Promise<void>;
 }
 
-interface DemoBrowser {
-  newContext(options: {
-    viewport: { width: number; height: number };
-    deviceScaleFactor: number;
-    colorScheme: "dark";
-    reducedMotion: "no-preference";
-    recordVideo: { dir: string; size: { width: number; height: number } };
-  }): Promise<DemoContext>;
+export interface DemoContextOptions {
+  readonly viewport: { readonly width: number; readonly height: number };
+  readonly deviceScaleFactor: number;
+  readonly colorScheme: "dark";
+  readonly reducedMotion: "no-preference";
+  readonly recordVideo?: {
+    readonly dir: string;
+    readonly size: { readonly width: number; readonly height: number };
+  };
+  readonly storageState?: DemoStorageState;
+}
+
+export interface DemoBrowser {
+  newContext(options: DemoContextOptions): Promise<DemoContext>;
   close(): Promise<void>;
 }
 
@@ -420,6 +491,20 @@ async function assertFfmpeg(): Promise<void> {
  * ------------------------------------------------------------------ */
 
 const STEP_TIMEOUT_MS = 15_000;
+const PAIRING_TIMEOUT_MS = 20_000;
+
+/** Every `/nomior` route bounces here until the session is paired. */
+function isPairRoute(url: string): boolean {
+  return new URL(url).pathname.startsWith("/pair");
+}
+
+/** Shared by the pairing pass and every take, so both see the same app. */
+const CONTEXT_DEFAULTS = {
+  viewport: { ...CAPTURE_VIEWPORT },
+  deviceScaleFactor: 2,
+  colorScheme: "dark",
+  reducedMotion: "no-preference",
+} as const satisfies Omit<DemoContextOptions, "recordVideo" | "storageState">;
 
 function locatorFor(page: DemoPage, step: DemoStep): DemoLocator | null {
   switch (step.kind) {
@@ -463,25 +548,51 @@ async function runStep(page: DemoPage, spec: DemoGifSpec, step: DemoStep): Promi
   }
 }
 
-async function recordSpec(
+/**
+ * Spends the pairing token and hands back the session it bought. The token is
+ * single-use, so this happens once per run and never inside a take — a second
+ * visit to the same pair URL would fail, and the pairing screen is not a demo.
+ *
+ * The app keeps its credential in IndexedDB, which Playwright only snapshots
+ * when asked.
+ */
+async function pairOnce(browser: DemoBrowser, pairUrl: string): Promise<DemoStorageState> {
+  const context = await browser.newContext({ ...CONTEXT_DEFAULTS });
+  const page = await context.newPage();
+  try {
+    await page.goto(pairUrl, { waitUntil: "domcontentloaded" });
+    // Where the browser ended up is the verdict; a timeout here just means it
+    // never left /pair, which the check below reports properly.
+    await page
+      .waitForURL((url) => !url.pathname.startsWith("/pair"), { timeout: PAIRING_TIMEOUT_MS })
+      .catch(() => undefined);
+    if (isPairRoute(page.url())) {
+      throw new DemoRecorderError(pairingFailedMessage(page.url()));
+    }
+    return await context.storageState({ indexedDB: true });
+  } finally {
+    await context.close();
+  }
+}
+
+async function captureSpec(
   browser: DemoBrowser,
   spec: DemoGifSpec,
   options: CliOptions,
   videoDir: string,
+  storageState: DemoStorageState | undefined,
 ): Promise<string> {
   const context = await browser.newContext({
-    viewport: { ...CAPTURE_VIEWPORT },
-    deviceScaleFactor: 2,
-    colorScheme: "dark",
-    reducedMotion: "no-preference",
+    ...CONTEXT_DEFAULTS,
     recordVideo: { dir: videoDir, size: { ...CAPTURE_VIEWPORT } },
+    ...(storageState === undefined ? {} : { storageState }),
   });
   const page = await context.newPage();
   const webmPath = NodePath.join(videoDir, `${spec.name.replace(/\.gif$/, "")}.webm`);
   try {
     await page.goto(`${options.baseUrl}${spec.route}`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1_200);
-    if (page.url().includes("/pair")) {
+    if (isPairRoute(page.url())) {
       throw new DemoRecorderError(notPairedMessage(page.url()));
     }
     for (const step of spec.steps) {
@@ -496,12 +607,54 @@ async function recordSpec(
     await context.close();
     if (video !== null) await video.saveAs(webmPath);
   }
+  return webmPath;
+}
 
-  const gifPath = NodePath.join(options.outDir, spec.name);
+async function encodeGif(options: CliOptions, webmPath: string, gifPath: string): Promise<void> {
   await NodeFSP.mkdir(options.outDir, { recursive: true });
   await run("ffmpeg", ffmpegGifArgs(webmPath, gifPath));
   if (!options.keepVideos) await NodeFSP.rm(webmPath, { force: true });
-  return gifPath;
+}
+
+export interface RecordDemosInput {
+  readonly browser: DemoBrowser;
+  readonly specs: readonly DemoGifSpec[];
+  readonly options: CliOptions;
+  readonly videoDir: string;
+  /** Video to GIF; injected so the run can be exercised without ffmpeg. */
+  readonly encode?: (webmPath: string, gifPath: string) => Promise<void>;
+  readonly report?: (line: string) => void;
+}
+
+/** Returns the GIF paths it wrote, in the order they were recorded. */
+export async function recordDemos(input: RecordDemosInput): Promise<readonly string[]> {
+  const { browser, options, specs, videoDir } = input;
+  const encode = input.encode ?? ((webmPath, gifPath) => encodeGif(options, webmPath, gifPath));
+  const report =
+    input.report ??
+    ((line: string) => {
+      NodeProcess.stdout.write(line);
+    });
+
+  if (
+    options.pairUrl !== undefined &&
+    new URL(options.pairUrl).origin !== new URL(options.baseUrl).origin
+  ) {
+    throw new DemoRecorderError(pairOriginMismatchMessage(options.baseUrl, options.pairUrl));
+  }
+  const storageState =
+    options.pairUrl === undefined ? undefined : await pairOnce(browser, options.pairUrl);
+
+  const written: string[] = [];
+  for (const spec of specs) {
+    report(`recording ${spec.name} … `);
+    const webmPath = await captureSpec(browser, spec, options, videoDir, storageState);
+    const gifPath = NodePath.join(options.outDir, spec.name);
+    await encode(webmPath, gifPath);
+    written.push(gifPath);
+    report("ok\n");
+  }
+  return written;
 }
 
 async function main(): Promise<void> {
@@ -514,13 +667,9 @@ async function main(): Promise<void> {
 
   const videoDir = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "nomior-demo-"));
   const browser = await playwright.chromium.launch({ headless: !options.headed });
-  const written: string[] = [];
+  let written: readonly string[] = [];
   try {
-    for (const spec of specs) {
-      NodeProcess.stdout.write(`recording ${spec.name} … `);
-      written.push(await recordSpec(browser, spec, options, videoDir));
-      NodeProcess.stdout.write("ok\n");
-    }
+    written = await recordDemos({ browser, specs, options, videoDir });
   } finally {
     await browser.close();
     if (!options.keepVideos) await NodeFSP.rm(videoDir, { recursive: true, force: true });
