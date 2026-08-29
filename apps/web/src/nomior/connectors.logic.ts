@@ -3,18 +3,15 @@
  *
  * Connecting an account is the one flow on this surface that can fail for a
  * reason the user cannot see: this build carries no Google client id and none
- * has been set, the OAuth redirect lands on a loopback listener the viewing
- * browser cannot reach, or the Anarlog store is absent — or present and
- * deliberately refused. Every one of those turns into a sentence here rather
- * than into a greyed-out button, so a blocked Connect always says who has to
- * do what next.
+ * has been set, or the OAuth redirect lands on a loopback listener the viewing
+ * browser cannot reach. Both turn into a sentence here rather than into a
+ * greyed-out button, so a blocked Connect always says who has to do what next.
  *
  * @module nomior/connectors.logic
  */
 import { getRelativeTimeState } from "../timestampFormat";
 import type { BadgeTone } from "./reviewBoard.logic";
 import type {
-  AnarlogState,
   ConnectorAccountItem,
   ConnectorKind,
   ConnectorStatus,
@@ -24,16 +21,7 @@ import type {
 export const NEVER_SYNCED_LABEL = "Never synced";
 
 /** Section order on the page, and the sort key for the account list. */
-export const CONNECTOR_KIND_ORDER: readonly ConnectorKind[] = [
-  "googleCalendar",
-  "gmail",
-  "anarlog",
-];
-
-/** The kinds that go through Google's OAuth flow, and so need a client id. */
-export function isGoogleConnector(kind: ConnectorKind): boolean {
-  return kind === "googleCalendar" || kind === "gmail";
-}
+export const CONNECTOR_KIND_ORDER: readonly ConnectorKind[] = ["googleCalendar", "gmail"];
 
 export function connectorKindLabel(kind: ConnectorKind): string {
   switch (kind) {
@@ -41,8 +29,6 @@ export function connectorKindLabel(kind: ConnectorKind): string {
       return "Google Calendar";
     case "gmail":
       return "Gmail";
-    case "anarlog":
-      return "Anarlog";
   }
 }
 
@@ -53,8 +39,6 @@ export function connectorKindDescription(kind: ConnectorKind): string {
       return "Your events, so a recorded session can be matched to the meeting it was.";
     case "gmail":
       return "Your threads, so mail can be cited as context alongside meetings and reviews.";
-    case "anarlog":
-      return "Recorded sessions from the Anarlog store on this environment's machine.";
   }
 }
 
@@ -134,20 +118,14 @@ export function accountsOfKind(
 }
 
 /**
- * What the card's own button says.
+ * What the row's own button says.
  *
- * Connecting a second Google account is the same press as the first, so the
- * label is the only thing that changes — and it changes to the thing the press
- * actually does, which is add, not reconnect.
+ * Connecting a second account is the same press as the first — Google's own
+ * chooser decides which — so the label is the only thing that changes, to the
+ * thing the press actually does.
  */
-export function connectActionLabel(kind: ConnectorKind, connected: number): string {
-  if (!isGoogleConnector(kind)) return "Connect";
+export function connectActionLabel(connected: number): string {
   return connected === 0 ? "Connect" : "Add account";
-}
-
-/** Where a connector runs, in the width of a column. */
-export function connectorTypeLabel(kind: ConnectorKind): string {
-  return isGoogleConnector(kind) ? "Google" : "This machine";
 }
 
 export type ConnectorRowStatus = "connected" | "attention" | "none";
@@ -201,55 +179,9 @@ export function clientIdSaveIntent(input: string, google: GoogleClientState): Cl
   return google.source === "operator" ? "clear" : "unchanged";
 }
 
-export interface AnarlogPresentation {
-  readonly label: string;
-  readonly tone: BadgeTone;
-  readonly detail: string;
-}
-
-/**
- * The three detections are three different facts and never collapse: absent,
- * present and readable, or present and refused. The last one matters most —
- * the reader pins a schema ceiling, so a newer store is found and left alone
- * rather than parsed on a guess.
- */
-export function anarlogPresentation(state: AnarlogState): AnarlogPresentation {
-  switch (state.detection) {
-    case "found":
-      return {
-        label: "Store found",
-        tone: "success",
-        detail:
-          state.storePath === null
-            ? "Found an Anarlog store on this environment's machine, though it did not report a path."
-            : `Reading ${state.storePath} on this environment's machine.`,
-      };
-    case "notFound":
-      return {
-        label: "No store",
-        tone: "secondary",
-        detail:
-          state.storePath === null
-            ? "We looked in Anarlog's default location on this environment's machine and found no store. Record a session in Anarlog, then check again."
-            : `We looked at ${state.storePath} on this environment's machine and found no store there.`,
-      };
-    case "unsupportedSchema": {
-      const version =
-        state.schemaVersion === null ? "an unrecognised version" : `v${state.schemaVersion}`;
-      const where = state.storePath === null ? "A store" : `The store at ${state.storePath}`;
-      return {
-        label: "Schema too new",
-        tone: "warning",
-        detail: `${where} reports schema ${version}, past the ceiling this reader was built against. Nomior leaves it alone rather than misreading it — upgrade Nomior, or keep using the Anarlog version that wrote it.`,
-      };
-    }
-  }
-}
-
 export interface ConnectAvailabilityInput {
   readonly kind: ConnectorKind;
   readonly google: GoogleClientState;
-  readonly anarlog: AnarlogState;
   readonly accounts: readonly ConnectorAccountItem[];
   readonly canStartLocalOAuth: boolean;
 }
@@ -257,57 +189,33 @@ export interface ConnectAvailabilityInput {
 /**
  * Why Connect cannot run, or null when it can.
  *
- * The loopback check comes first for the Google kinds: it is the only blocker
- * the person at this screen cannot clear from this screen, so naming a second,
- * fixable reason ahead of it would imply that fixing it would be enough.
- * Anarlog is never gated on it — nothing about reading a local SQLite file
- * involves a browser redirect.
+ * The loopback check comes first: it is the only blocker the person at this
+ * screen cannot clear from this screen, so naming a second, fixable reason
+ * ahead of it would imply that fixing it would be enough.
  */
 export function connectBlockedReason(input: ConnectAvailabilityInput): string | null {
-  const { kind, google, anarlog, accounts, canStartLocalOAuth } = input;
-
-  if (isGoogleConnector(kind)) {
-    if (!canStartLocalOAuth) {
-      return "Google sign-in finishes on a loopback address on this environment's machine, which this browser cannot reach. Open Nomior Code on that machine to connect.";
-    }
-    if (!google.configured) {
-      return "Add this environment\u2019s Google client id above first.";
-    }
-    return null;
+  if (!input.canStartLocalOAuth) {
+    return "Google sign-in finishes on a loopback address on this environment's machine, which this browser cannot reach. Open Nomior Code on that machine to connect.";
   }
-
-  // Detection is checked before the existing account: a row connected from a
-  // store that has since moved must not report itself as already connected,
-  // which would leave Connect blocked by the very thing it would fix.
-  switch (anarlog.detection) {
-    case "notFound":
-      return "There is no Anarlog store to connect on this environment's machine yet.";
-    case "unsupportedSchema":
-      return "This Anarlog store's schema is newer than the reader supports, so connecting it would read it wrong.";
-    case "found":
-      return accounts.some((account) => account.kind === "anarlog")
-        ? "The Anarlog store on this machine is already connected."
-        : null;
+  if (!input.google.configured) {
+    return "This build has no Google client id. Add one at the foot of this page.";
   }
+  return null;
 }
 
 /**
  * The one line under a connector's name, or null when the row says enough.
  *
  * A row earns at most one sentence. Once a connector has accounts the rows
- * beneath it are the sentence, so it gets none. An unconnected Google row
- * carries what connecting would buy you — unless the thing stopping it is one
- * of the two blockers the page already states once above the list, and then
- * repeating it here would be the same sentence three times. Anarlog is a file
- * rather than an account, so its line is what we found on this machine.
+ * beneath it are the sentence, so it gets none. An unconnected row carries
+ * what connecting would buy you — unless the thing stopping it is one of the
+ * two blockers the page states once elsewhere, and then repeating it here
+ * would be the same sentence twice.
  */
 export function connectorRowLine(input: ConnectAvailabilityInput): string | null {
   if (accountsOfKind(input.accounts, input.kind).length > 0) return null;
-  if (isGoogleConnector(input.kind)) {
-    if (!input.canStartLocalOAuth || !input.google.configured) return null;
-    return connectorKindDescription(input.kind);
-  }
-  return connectBlockedReason(input) ?? anarlogPresentation(input.anarlog).detail;
+  if (!input.canStartLocalOAuth || !input.google.configured) return null;
+  return connectorKindDescription(input.kind);
 }
 
 /**

@@ -91,7 +91,7 @@ export type TaskInput = typeof TaskInput.Type;
 export const SourceInput = Schema.Struct({
   kind: NomiorSourceKind,
   /**
-   * Stable id in the source system (Anarlog note id, Gmail message id, file
+   * Stable id in the source system (Gmail message id, recorder session id, file
    * path). Re-ingesting the same `(kind, externalId)` replaces the previous
    * source atomically.
    */

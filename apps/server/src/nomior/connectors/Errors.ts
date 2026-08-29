@@ -62,7 +62,7 @@ export class ConnectorSelectorRequiredError extends Schema.TaggedErrorClass<Conn
 }
 
 /**
- * Raised when a local-store connector (Anarlog) finds a store whose schema
+ * Raised when a local-store connector finds a store whose schema
  * version is outside the contract-tested range and no degraded read path is
  * available. Surfaces as the "connector awaiting update" health state —
  * never a silent misparse.

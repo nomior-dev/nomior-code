@@ -3,7 +3,7 @@
  * formatting, participant labels, ordering, and the block split that lets the
  * notes read as a document instead of a wall of text.
  *
- * Every formatter here has to survive a hole the Anarlog connector really
+ * Every formatter here has to survive a hole a recorded session really
  * leaves — a transcript with no timing, a turn diarization never attributed, a
  * participant with neither name nor email — so each one names the gap rather
  * than inventing a value. `00:00` on an untimed turn would be a lie.
@@ -187,7 +187,7 @@ const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
 
 /**
  * Splits the connector's markdown-ish notes into the three shapes the reader
- * draws. Deliberately not a markdown parser: Anarlog writes headings, bullets
+ * draws. Deliberately not a markdown parser: a notes document has headings, bullets
  * and paragraphs, and anything else survives as its own paragraph rather than
  * being swallowed by a rule that was guessing.
  */

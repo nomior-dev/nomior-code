@@ -89,13 +89,13 @@ export const evalCorpus: ReadonlyArray<SourceInput> = [
   },
   {
     kind: "meeting",
-    externalId: "eval-anarlog-meeting",
-    title: "Планёрка по интеграции Anarlog",
+    externalId: "eval-recorder-meeting",
+    title: "Планёрка по записи встреч",
     occurredAt: "2026-08-18T14:00:00.000Z",
     scopes: [EVAL_PROJECT],
     segments: [
       {
-        text: "Коннектор читает локальную базу SQLite и markdown экспорт, ничего не реверс-инжинирим.",
+        text: "Пишем системный звук и микрофон локально, распознаём на устройстве, наружу ничего не отправляем.",
         speaker: "Иван",
         tsStart: 10,
         tsEnd: 25,

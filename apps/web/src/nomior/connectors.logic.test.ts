@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  ANARLOG_FOUND,
-  ANARLOG_NOT_FOUND,
-  ANARLOG_STORE_PATH,
-  ANARLOG_UNSUPPORTED_SCHEMA,
   GOOGLE_CLIENT_CONFIGURED,
   GOOGLE_CLIENT_OPERATOR,
   GOOGLE_CLIENT_UNCONFIGURED,
 } from "./fixtures.connectors";
 import {
   accountsSignature,
-  anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
   clientIdSaveIntent,
@@ -19,7 +14,6 @@ import {
   connectorKindLabel,
   formatIngestedCount,
   formatLastSynced,
-  isGoogleConnector,
   needsGoogleSetup,
   orderAccounts,
   showsDetail,
@@ -39,13 +33,9 @@ const account = (
 });
 
 describe("connector kinds", () => {
-  it("names each kind and knows which ones need Google's OAuth flow", () => {
+  it("names each kind", () => {
     expect(connectorKindLabel("googleCalendar")).toBe("Google Calendar");
     expect(connectorKindLabel("gmail")).toBe("Gmail");
-    expect(connectorKindLabel("anarlog")).toBe("Anarlog");
-    expect(isGoogleConnector("googleCalendar")).toBe(true);
-    expect(isGoogleConnector("gmail")).toBe(true);
-    expect(isGoogleConnector("anarlog")).toBe(false);
   });
 });
 
@@ -93,12 +83,11 @@ describe("last sync", () => {
 describe("account ordering", () => {
   it("groups by kind then name, so the list does not reshuffle between reads", () => {
     const ordered = orderAccounts([
-      account({ id: "3", kind: "anarlog", displayName: "Anarlog" }),
       account({ id: "2", kind: "gmail", displayName: "zoe@example" }),
       account({ id: "1", kind: "googleCalendar", displayName: "work@example" }),
       account({ id: "0", kind: "googleCalendar", displayName: "personal@example" }),
     ]);
-    expect(ordered.map((entry) => entry.id)).toEqual(["0", "1", "2", "3"]);
+    expect(ordered.map((entry) => entry.id)).toEqual(["0", "1", "2"]);
   });
 });
 
@@ -134,41 +123,9 @@ describe("google client id", () => {
   });
 });
 
-describe("anarlog detection", () => {
-  it("says three different things for three different facts", () => {
-    const found = anarlogPresentation(ANARLOG_FOUND);
-    const missing = anarlogPresentation(ANARLOG_NOT_FOUND);
-    const refused = anarlogPresentation(ANARLOG_UNSUPPORTED_SCHEMA);
-    expect(new Set([found.detail, missing.detail, refused.detail]).size).toBe(3);
-    expect(found.detail).toContain(ANARLOG_STORE_PATH);
-    // We looked, and we say where.
-    expect(missing.detail).toContain(ANARLOG_STORE_PATH);
-    expect(missing.detail).toContain("no store");
-    // Found and refused, with the version that caused the refusal named.
-    expect(refused.detail).toContain("v9");
-    expect(refused.detail).toContain(ANARLOG_STORE_PATH);
-  });
-
-  it("still explains itself when the server reported no path or version", () => {
-    const missing = anarlogPresentation({
-      detection: "notFound",
-      storePath: null,
-      schemaVersion: null,
-    });
-    expect(missing.detail).toContain("default location");
-    const refused = anarlogPresentation({
-      detection: "unsupportedSchema",
-      storePath: null,
-      schemaVersion: null,
-    });
-    expect(refused.detail).toContain("unrecognised version");
-  });
-});
-
 describe("connect availability", () => {
   const base = {
     google: GOOGLE_CLIENT_CONFIGURED,
-    anarlog: ANARLOG_FOUND,
     accounts: [] as readonly ConnectorAccountItem[],
     canStartLocalOAuth: true,
   };
@@ -185,8 +142,8 @@ describe("connect availability", () => {
       google: GOOGLE_CLIENT_UNCONFIGURED,
     });
     expect(reason).toContain("client id");
-    // And says where the field is: above the list, not behind a drawer.
-    expect(reason).toContain("above");
+    // And says where the field is: one line at the foot of the page.
+    expect(reason).toContain("foot of this page");
   });
 
   it("blocks a remote client on the loopback redirect, ahead of any fixable reason", () => {
@@ -199,31 +156,6 @@ describe("connect availability", () => {
     expect(reason).toContain("loopback");
     // Naming the client id here would imply pasting one is enough. It is not.
     expect(reason).not.toContain("client id");
-  });
-
-  it("does not gate anarlog on the OAuth redirect, which it never uses", () => {
-    expect(
-      connectBlockedReason({ ...base, kind: "anarlog", canStartLocalOAuth: false }),
-    ).toBeNull();
-  });
-
-  it("blocks anarlog when there is no store, or one we refuse to read", () => {
-    expect(
-      connectBlockedReason({ ...base, kind: "anarlog", anarlog: ANARLOG_NOT_FOUND }),
-    ).toContain("no Anarlog store");
-    expect(
-      connectBlockedReason({ ...base, kind: "anarlog", anarlog: ANARLOG_UNSUPPORTED_SCHEMA }),
-    ).toContain("newer than the reader supports");
-  });
-
-  it("blocks a second anarlog connection: one machine has one store", () => {
-    expect(
-      connectBlockedReason({
-        ...base,
-        kind: "anarlog",
-        accounts: [account({ id: "anarlog-local", kind: "anarlog" })],
-      }),
-    ).toContain("already connected");
   });
 });
 

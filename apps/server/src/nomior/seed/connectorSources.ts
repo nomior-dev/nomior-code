@@ -16,15 +16,15 @@ import {
 } from "../connectors/Records.ts";
 
 import {
-  seedAnarlogAccount,
+  SEED_RECORDER,
   seedCalendarEvents,
   seedMeetings,
   type SeedCalendarEvent,
   type SeedMeeting,
 } from "./scenario.ts";
 
-const ANARLOG_DRIVER = ConnectorDriverKind.make("anarlog");
-const ANARLOG_ACCOUNT = ConnectorAccountId.make(seedAnarlogAccount.accountId);
+const RECORDER_DRIVER = ConnectorDriverKind.make(SEED_RECORDER.driverKind);
+const RECORDER_ACCOUNT = ConnectorAccountId.make(SEED_RECORDER.accountId);
 
 export const transcriptConnectorSource = (meeting: SeedMeeting): ConnectorSource => ({
   sourceId: meeting.meetingId,
@@ -39,8 +39,8 @@ export const transcriptConnectorSource = (meeting: SeedMeeting): ConnectorSource
     ...(meeting.seriesId === null ? {} : { recurringSeriesId: meeting.seriesId }),
   },
   provenance: {
-    driverKind: ANARLOG_DRIVER,
-    accountId: ANARLOG_ACCOUNT,
+    driverKind: RECORDER_DRIVER,
+    accountId: RECORDER_ACCOUNT,
     externalId: meeting.meetingId,
     externalUpdatedAt: meeting.endsAt,
   },

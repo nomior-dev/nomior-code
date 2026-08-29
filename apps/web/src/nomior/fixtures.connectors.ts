@@ -9,7 +9,7 @@
  * without a server — one healthy account, one whose last sync failed and may
  * recover, one whose access was revoked and will not, and one that has never
  * synced at all. The alternates below are the states a single overview cannot
- * show at the same time (no client id, a remote client, an Anarlog store that
+ * show at the same time (no client id, a remote client, an account that
  * is absent or refused); the panel tests render against those directly.
  *
  * Google connector ids match the calendar accounts in `fixtures.generated.ts`,
@@ -17,7 +17,7 @@
  *
  * @module nomior/fixtures.connectors
  */
-import type { AnarlogState, ConnectorKind, ConnectorStatus, GoogleClientState } from "./types";
+import type { ConnectorKind, ConnectorStatus, GoogleClientState } from "./types";
 
 export interface ConnectorAccountScenario {
   readonly id: string;
@@ -56,14 +56,6 @@ export const connectorAccountScenarios: readonly ConnectorAccountScenario[] = [
     lastSyncedAgoHours: null,
     detail: "The token was revoked from the Google account's security settings.",
   },
-  {
-    id: "anarlog-local",
-    kind: "anarlog",
-    displayName: "Anarlog on this machine",
-    status: "connected",
-    lastSyncedAgoHours: 5,
-    detail: null,
-  },
 ];
 
 /**
@@ -88,26 +80,4 @@ export const GOOGLE_CLIENT_UNCONFIGURED: GoogleClientState = {
   configured: false,
   source: "none",
   clientIdHint: null,
-};
-
-export const ANARLOG_STORE_PATH = "~/Library/Application Support/Anarlog/anarlog.sqlite";
-
-export const ANARLOG_FOUND: AnarlogState = {
-  detection: "found",
-  storePath: ANARLOG_STORE_PATH,
-  schemaVersion: 4,
-};
-
-/** Absent, but we still say where we looked. */
-export const ANARLOG_NOT_FOUND: AnarlogState = {
-  detection: "notFound",
-  storePath: ANARLOG_STORE_PATH,
-  schemaVersion: null,
-};
-
-/** Found and refused: the reader pins a ceiling rather than guess at v9. */
-export const ANARLOG_UNSUPPORTED_SCHEMA: AnarlogState = {
-  detection: "unsupportedSchema",
-  storePath: ANARLOG_STORE_PATH,
-  schemaVersion: 9,
 };

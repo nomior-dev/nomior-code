@@ -374,7 +374,7 @@ export function MeetingsPanel() {
         <EmptyHeader>
           <EmptyTitle>No meetings yet</EmptyTitle>
           <EmptyDescription>
-            Meetings land here as the Anarlog connector ingests recorded sessions.
+            Meetings land here as recorded sessions are transcribed.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

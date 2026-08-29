@@ -6,11 +6,11 @@ import { NomiorPortProvider } from "../nomior/port";
 import { useNomiorDataPort } from "../nomior/useDataPort";
 
 /**
- * Connectors is where an environment stops showing sample data: the Google
- * client id, the accounts signed in against it, and the Anarlog store on that
- * machine. It brings its own port because `/settings` is outside the `/nomior`
- * shell that provides one, and its own scroll container because the settings
- * layout hands each page a fixed-height slot.
+ * Connectors is where an environment stops showing sample data: the accounts
+ * it is signed in as, and what each of them last pulled. It brings its own
+ * port because `/settings` is outside the `/nomior` shell that provides one,
+ * and its own scroll container because the settings layout hands each page a
+ * fixed-height slot.
  */
 function SettingsConnectorsRoute() {
   return (

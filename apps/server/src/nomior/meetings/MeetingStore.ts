@@ -1,7 +1,7 @@
 /**
  * MeetingStore — the meetings panel's read model over the context broker.
  *
- * A meeting is not a table. The Anarlog connector ingests one `meeting_transcript`
+ * A meeting is not a table. A recording ingests one `meeting_transcript`
  * record as a `nomior_sources` row of kind `meeting`, its speaker turns as that
  * source's `nomior_chunks`, and each set of human notes as a *separate* source of
  * kind `document`. Only `provenance_json` ties the two together, so every query
@@ -132,7 +132,7 @@ const MeetingSummaryRow = Schema.Struct({
   id: TrimmedNonEmptyString,
   title: Schema.String,
   startedAt: Schema.NullOr(IsoDateTime),
-  /** Anarlog's session id, the key the notes document is joined on. */
+  /** The recording session id, the key the notes document is joined on. */
   sessionId: Schema.NullOr(Schema.String),
   calendarEventId: Schema.NullOr(Schema.String),
   /** The raw `$.participants` array, still JSON text (see `parseParticipants`). */
@@ -313,7 +313,7 @@ export const make = Effect.gen(function* () {
   });
 
   /**
-   * Anarlog emits one notes document per session document, so a session can
+   * A source emits one notes document per session document, so a session can
    * have several. They concatenate in `external_id` order — the document's own
    * id, which is stable across re-syncs where the broker's row id is not.
    */

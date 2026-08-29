@@ -4,7 +4,7 @@
  *
  * Matching is deliberately conservative: candidates are scored by
  * time-window overlap + title similarity + participant overlap, an exact
- * cross-store link (Anarlog's stored calendar event id) short-circuits to
+ * cross-store link (a stored calendar event id) short-circuits to
  * a certain match, and when two candidates score within the ambiguity
  * margin the meeting is marked `needsConfirmation` with the candidates
  * listed instead of guessing. Every merged field carries provenance —
@@ -189,7 +189,7 @@ export const scoreTranscriptAgainstEvent = (
   transcript: ConnectorSource,
   event: ConnectorSource,
 ): number => {
-  // An explicit cross-store link (Anarlog stores the calendar event id it
+  // An explicit cross-store link (a source that stores the calendar event id it
   // recorded against) is certain — no heuristics needed.
   if (
     transcript.links.calendarEventId !== undefined &&

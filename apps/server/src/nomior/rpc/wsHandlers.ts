@@ -164,9 +164,7 @@ export const makeNomiorPanelHandlers = ({
       // not be recorded anywhere.
     ),
 
-  [WS_METHODS.nomiorConnectorConnect]: (input: {
-    readonly kind: "googleCalendar" | "gmail" | "anarlog";
-  }) =>
+  [WS_METHODS.nomiorConnectorConnect]: (input: { readonly kind: "googleCalendar" | "gmail" }) =>
     observeRpcEffect(
       WS_METHODS.nomiorConnectorConnect,
       Effect.gen(function* () {

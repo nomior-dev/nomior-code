@@ -119,7 +119,7 @@ export interface MeetingArtifacts {
   readonly hasNotes: boolean;
 }
 
-/** One person in the room. Anarlog often knows a name or an email, not both. */
+/** One person in the room. A source often knows a name or an email, not both. */
 export interface MeetingParticipant {
   readonly name: string | null;
   readonly email: string | null;
@@ -199,7 +199,7 @@ export interface SchedulerState {
 // Connectors
 // ---------------------------------------------------------------------------
 
-export type ConnectorKind = "googleCalendar" | "gmail" | "anarlog";
+export type ConnectorKind = "googleCalendar" | "gmail";
 
 /** `error` may clear on retry; `revoked` needs the account connected again. */
 export type ConnectorStatus = "connected" | "error" | "revoked";
@@ -230,22 +230,9 @@ export interface GoogleClientState {
   readonly clientIdHint: string | null;
 }
 
-/**
- * `unsupportedSchema` is separate from `notFound` on purpose: the reader pins a
- * schema ceiling, so a newer Anarlog is detected-and-refused rather than absent.
- */
-export type AnarlogDetection = "found" | "notFound" | "unsupportedSchema";
-
-export interface AnarlogState {
-  readonly detection: AnarlogDetection;
-  readonly storePath: string | null;
-  readonly schemaVersion: number | null;
-}
-
 export interface ConnectorsOverview {
   readonly accounts: readonly ConnectorAccountItem[];
   readonly google: GoogleClientState;
-  readonly anarlog: AnarlogState;
   /**
    * False when this client is not on the server's machine. The OAuth redirect
    * lands on a loopback listener bound on the *server's* host, so a remote

@@ -22,7 +22,7 @@
  *          └──▶ mcp/toolkits/nomior  (context_search/get/decisions/remember)
  *
  *   NomiorConnectorIngestLive ←── ContextIngest
- *          └──▶ ConnectorContextIngest (Anarlog/Gmail/Calendar → broker)
+ *          └──▶ ConnectorContextIngest (Gmail/Calendar/recorder → broker)
  *
  *   NomiorSchedulerLive ───────────────┤   RateLimitObserver, InstanceScheduler
  *          │

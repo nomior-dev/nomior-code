@@ -22,11 +22,7 @@ import {
 } from "./ConnectorsPanel";
 import { ContextMemoryPanel, MemoryCandidateRow } from "./ContextMemoryPanel";
 import { createFixtureNomiorPort } from "./fixtures";
-import {
-  ANARLOG_NOT_FOUND,
-  ANARLOG_UNSUPPORTED_SCHEMA,
-  GOOGLE_CLIENT_UNCONFIGURED,
-} from "./fixtures.connectors";
+import { GOOGLE_CLIENT_UNCONFIGURED } from "./fixtures.connectors";
 import { InstanceRow, InstancesPanel } from "./InstancesPanel";
 import {
   MeetingListRow,
@@ -207,9 +203,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
 
   it("the reader shows the header, the derived length and every participant", async () => {
     const port = createFixtureNomiorPort(now);
-    const detail = await port.getMeeting!("meet-anarlog-0826");
+    const detail = await port.getMeeting!("meet-recorder-0826");
     const markup = renderToStaticMarkup(<MeetingReader detail={detail} />);
-    expect(markup).toContain("Anarlog connector integration");
+    expect(markup).toContain("Recorder pipeline");
     expect(markup).toContain("1 hr 3 min");
     expect(markup).toContain("On the calendar");
     expect(markup).toContain("Ivan Myshko");
@@ -218,7 +214,7 @@ describe("Nomior panel subcomponents render fixture data", () => {
 
   it("groups consecutive turns from one speaker and names the unattributed ones", async () => {
     const port = createFixtureNomiorPort(now);
-    const { transcript } = await port.getMeeting!("meet-anarlog-0826");
+    const { transcript } = await port.getMeeting!("meet-recorder-0826");
     const markup = renderToStaticMarkup(<TranscriptReader turns={transcript} />);
     expect(markup).toContain("Unattributed");
     expect(markup).toContain("1:00:12");
@@ -280,7 +276,7 @@ describe("Nomior panel subcomponents render fixture data", () => {
         state={idle}
       />,
     );
-    for (const label of ["Connector", "Type", "Status"]) expect(markup).toContain(label);
+    for (const label of ["Connector", "Status"]) expect(markup).toContain(label);
     expect(markup).toContain("Google Calendar");
     expect(markup).toContain("work@nomior.example");
     // A connector with accounts adds, it does not connect again.
@@ -414,26 +410,6 @@ describe("Nomior panel subcomponents render fixture data", () => {
     // The client id is missing too, but pointing at it would imply that
     // pasting one is enough to finish a sign-in this browser cannot finish.
     expect(row).toContain('aria-describedby="nomior-remote-oauth"');
-  });
-
-  it("anarlog reads as found, absent or refused, never as one merged state", async () => {
-    const port = createFixtureNomiorPort(now);
-    const overview = await port.listConnectors();
-    const withoutAccounts = { ...overview, accounts: [] };
-    const anarlogRow = (state: ConnectorsOverview) =>
-      renderToStaticMarkup(
-        <ConnectorRow kind="anarlog" onConnect={noop} overview={state} state={idle} />,
-      );
-    const found = anarlogRow(withoutAccounts);
-    const missing = anarlogRow({ ...withoutAccounts, anarlog: ANARLOG_NOT_FOUND });
-    const refused = anarlogRow({ ...withoutAccounts, anarlog: ANARLOG_UNSUPPORTED_SCHEMA });
-    expect(found).toContain("anarlog.sqlite");
-    expect(found).not.toContain(DISABLED_ATTRIBUTE);
-    expect(missing).toContain("no Anarlog store");
-    expect(missing).toContain(DISABLED_ATTRIBUTE);
-    // Found and refused names the version, so nobody reads it as absent.
-    expect(refused).toContain("newer than the reader supports");
-    expect(refused).toContain(DISABLED_ATTRIBUTE);
   });
 
   it("port error state names the failure and offers a retry", () => {

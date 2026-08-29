@@ -1,22 +1,15 @@
-// @effect-diagnostics nodeBuiltinImport:off - the Anarlog fixture store is a real on-disk sqlite file, built with raw node:sqlite/fs like AnarlogDriver.test.ts.
 /**
  * The connector handlers against real stores.
  *
  * Everything under test here is an agreement between two pieces of code that a
  * fake would paper over: the client id survives a round trip through the same
- * secret store the token vault uses, disconnect clears rows in three different
- * tables, and the Anarlog detection is a real sqlite file being opened and its
- * migration ledger read. So the database is the shipped sqlite schema, the
- * secret store is the shipped file-backed one over a temp dir, and the Anarlog
- * store is a file on disk.
+ * secret store the token vault uses, and disconnect clears rows in three
+ * different tables. So the database is the shipped sqlite schema and the
+ * secret store is the shipped file-backed one over a temp dir.
  *
  * Not covered, because it needs Google: the redirect half of `connect`. What is
  * covered is every way `connect` refuses before it opens a listener.
  */
-import * as NodeFS from "node:fs";
-import * as NodeOS from "node:os";
-import * as NodePath from "node:path";
-import * as NodeSqlite from "node:sqlite";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -38,7 +31,6 @@ import {
   type ConnectorRecord,
 } from "../connectors/Records.ts";
 import { NomiorSourceId } from "../context/Model.ts";
-import { ANARLOG_SCHEMA_VERSION_CEILING } from "../connectors/anarlog/AnarlogSchema.ts";
 import * as GoogleClientIdStore from "../connectors/google/GoogleClientIdStore.ts";
 import * as GoogleTokenVault from "../connectors/google/GoogleTokenVault.ts";
 import { GoogleTokenPortLive } from "../connectors/google/googleapisRuntime.ts";
@@ -99,8 +91,8 @@ const layer = it.layer(
   ).pipe(
     Layer.provide(SecretStoreTest),
     Layer.provideMerge(SqlitePersistenceMemory),
-    // Merged, not just provided: `listConnectors` reads the Anarlog store off
-    // the real filesystem, so the tests need FileSystem and Path too.
+    // Merged, not just provided: the handlers reach the real filesystem, so
+    // the tests need FileSystem and Path too.
     Layer.provideMerge(NodeServices.layer),
   ),
 );
@@ -108,89 +100,7 @@ const layer = it.layer(
 /** A real Google client id's shape: a long opaque string ending in `.com`. */
 const CLIENT_ID = "982374651028-3f9qmc7v1b0k2d8s6a4h5j7l9n1p3r5t.apps.googleusercontent.com";
 
-const ANARLOG_KIND = ConnectorDriverKind.make("anarlog");
 const GOOGLE_CALENDAR_KIND = ConnectorDriverKind.make("googleCalendar");
-
-const withTempDir = <A, E, R>(use: (dir: string) => Effect.Effect<A, E, R>) =>
-  Effect.acquireUseRelease(
-    Effect.sync(() => NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "nomior-connectors-"))),
-    use,
-    (dir) => Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true })),
-  );
-
-const ANARLOG_SESSION_TITLE = "Weekly Planning";
-
-/**
- * An Anarlog store the detector accepts and the driver can read.
- *
- * The migration ledger is all detection looks at, but connecting now runs the
- * account's first sync, so the store also carries the tables that sync reads
- * and one session for it to find. `AnarlogDriver.test.ts` owns the deep
- * coverage of those rows; this is the shallowest store that ingests anything.
- */
-const seedAnarlogStore = (dir: string, version: bigint): string => {
-  const storePath = NodePath.join(dir, "app.db");
-  const db = new NodeSqlite.DatabaseSync(storePath);
-  db.exec(`
-    CREATE TABLE _sqlx_migrations (
-      version INTEGER PRIMARY KEY,
-      description TEXT NOT NULL DEFAULT '',
-      installed_on TEXT NOT NULL DEFAULT '',
-      success INTEGER NOT NULL DEFAULT 1,
-      checksum BLOB,
-      execution_time INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      title TEXT NOT NULL DEFAULT '',
-      started_at TEXT NOT NULL DEFAULT '',
-      ended_at TEXT NOT NULL DEFAULT '',
-      event_id TEXT NOT NULL DEFAULT '',
-      external_event_id TEXT NOT NULL DEFAULT '',
-      series_id TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL DEFAULT '',
-      deleted_at TEXT
-    );
-    CREATE TABLE transcripts (
-      id TEXT PRIMARY KEY NOT NULL,
-      session_id TEXT NOT NULL DEFAULT '',
-      started_at_ms INTEGER NOT NULL DEFAULT 0,
-      words_json TEXT NOT NULL DEFAULT '[]',
-      updated_at TEXT NOT NULL DEFAULT '',
-      deleted_at TEXT
-    );
-    CREATE TABLE session_documents (
-      id TEXT PRIMARY KEY NOT NULL,
-      session_id TEXT NOT NULL DEFAULT '',
-      kind TEXT NOT NULL DEFAULT 'note',
-      title TEXT NOT NULL DEFAULT '',
-      body_format TEXT NOT NULL DEFAULT 'prosemirror_json',
-      body TEXT NOT NULL DEFAULT '',
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL DEFAULT '',
-      deleted_at TEXT
-    );
-    CREATE TABLE session_participants (
-      id TEXT PRIMARY KEY NOT NULL,
-      session_id TEXT NOT NULL DEFAULT '',
-      display_name TEXT NOT NULL DEFAULT '',
-      email TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL DEFAULT '',
-      deleted_at TEXT
-    );
-  `);
-  db.prepare("INSERT INTO _sqlx_migrations (version) VALUES (?)").run(version);
-  db.prepare(
-    `INSERT INTO sessions (id, title, started_at, ended_at, updated_at)
-     VALUES ('s1', ?, '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', '2026-08-24T11:05:00.000Z')`,
-  ).run(ANARLOG_SESSION_TITLE);
-  db.prepare(
-    `INSERT INTO session_documents (id, session_id, kind, title, body_format, body, updated_at)
-     VALUES ('d1', 's1', 'note', 'Notes', 'markdown', 'Decision: ship it.', '2026-08-24T11:02:00.000Z')`,
-  ).run();
-  db.close();
-  return storePath;
-};
 
 const upsertAccount = (input: {
   readonly accountId: string;
@@ -266,60 +176,6 @@ describe("connector handlers over real stores", () => {
       }),
     );
 
-    it.effect("reports an Anarlog store that is not where the account says it is", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath: NodePath.join(dir, "nothing-here.db") },
-          });
-
-          const { anarlog } = yield* listConnectors(yield* listDeps);
-          assert.strictEqual(anarlog.detection, "notFound");
-          assert.isNull(anarlog.storePath);
-          assert.isNull(anarlog.schemaVersion);
-        }),
-      ),
-    );
-
-    it.effect("finds a real Anarlog store at the configured path", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          const storePath = seedAnarlogStore(dir, ANARLOG_SCHEMA_VERSION_CEILING);
-          yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath },
-          });
-
-          const { anarlog } = yield* listConnectors(yield* listDeps);
-          assert.strictEqual(anarlog.detection, "found");
-          assert.strictEqual(anarlog.storePath, storePath);
-          assert.strictEqual(anarlog.schemaVersion, Number(ANARLOG_SCHEMA_VERSION_CEILING));
-        }),
-      ),
-    );
-
-    it.effect("calls a store past the tested ceiling unsupported, not missing", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          const tooNew = ANARLOG_SCHEMA_VERSION_CEILING + 1n;
-          const storePath = seedAnarlogStore(dir, tooNew);
-          yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath },
-          });
-
-          const { anarlog } = yield* listConnectors(yield* listDeps);
-          assert.strictEqual(anarlog.detection, "unsupportedSchema");
-          assert.strictEqual(anarlog.storePath, storePath);
-          assert.strictEqual(anarlog.schemaVersion, Number(tooNew));
-        }),
-      ),
-    );
-
     it.effect("disconnect drops the account, its cursors and its sync history", () =>
       Effect.gen(function* () {
         const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
@@ -372,106 +228,6 @@ describe("connector handlers over real stores", () => {
         assert.isFalse(error.retryable);
         assert.include(error.message, "google_nope");
       }),
-    );
-
-    it.effect("an Anarlog account whose store has gone reports error, not connected", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          const accountId = yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath: NodePath.join(dir, "moved-away.db") },
-          });
-
-          const { accounts, anarlog } = yield* listConnectors(yield* listDeps);
-          const row = accounts.find((account) => account.id === accountId);
-          assert.isDefined(row);
-
-          // The row still says `connected` in the database; the store is gone.
-          // Claiming health here would promise data the next sync cannot get.
-          assert.strictEqual(anarlog.detection, "notFound");
-          assert.strictEqual(row.status, "error");
-          assert.isNotNull(row.detail);
-
-          const accountStore = yield* ConnectorAccountStore.ConnectorAccountStore;
-          yield* accountStore.remove(accountId);
-        }),
-      ),
-    );
-
-    it.effect("connecting Anarlog records the detected store instead of opening a browser", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
-          const clientIds = yield* GoogleClientIdStore.GoogleClientIdStore;
-          ingestedTitles.length = 0;
-          const storePath = seedAnarlogStore(dir, ANARLOG_SCHEMA_VERSION_CEILING);
-          // A prior row in `error` is the reconnect case, and it is also how the
-          // test pins the store location without stubbing the platform's
-          // default directories.
-          const accountId = yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath },
-          });
-          yield* accounts.setStatus(accountId, "error");
-
-          const result = yield* connectConnector(
-            { accounts, clientIds, canStartLocalOAuth: true },
-            { kind: "anarlog" },
-          );
-
-          // No sign-in link: there is no consent screen for a local file.
-          assert.isNull(result.authorizationUrl);
-
-          const stored = yield* accounts.listByDriver(ANARLOG_KIND);
-          assert.strictEqual(stored.length, 1, "reconnect reused the row rather than orphaning it");
-          assert.strictEqual(stored[0]!.accountId, accountId);
-          assert.strictEqual(stored[0]!.status, "connected");
-          assert.strictEqual(stored[0]!.displayName, storePath);
-
-          // Connecting is the whole setup step: the account arrives synced, so
-          // nothing waits on the user finding the Sync button afterwards.
-          // The session and its note are two sources, as they are for a Sync.
-          assert.deepStrictEqual(ingestedTitles, [ANARLOG_SESSION_TITLE, "Notes"]);
-          const syncRuns = yield* ConnectorSyncRunStore.ConnectorSyncRunStore;
-          assert.isTrue((yield* syncRuns.lastSyncedAt()).has(accountId));
-
-          yield* accounts.remove(accountId);
-        }),
-      ),
-    );
-
-    it.effect("connecting Anarlog past the schema ceiling refuses and names the version", () =>
-      withTempDir((dir) =>
-        Effect.gen(function* () {
-          const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
-          const tooNew = ANARLOG_SCHEMA_VERSION_CEILING + 1n;
-          const storePath = seedAnarlogStore(dir, tooNew);
-          const accountId = yield* upsertAccount({
-            accountId: "anarlog_local",
-            driverKind: ANARLOG_KIND,
-            config: { storePath },
-          });
-
-          const error = yield* Effect.flip(
-            connectConnector(
-              {
-                accounts,
-                clientIds: yield* GoogleClientIdStore.GoogleClientIdStore,
-                canStartLocalOAuth: true,
-              },
-              { kind: "anarlog" },
-            ),
-          );
-
-          // Detected and refused, never silently ingested with a reader that
-          // does not understand the rows.
-          assert.isFalse(error.retryable);
-          assert.include(error.message, String(tooNew));
-          yield* accounts.remove(accountId);
-        }),
-      ),
     );
 
     it.effect("connect refuses before opening a listener when nothing is configured", () =>

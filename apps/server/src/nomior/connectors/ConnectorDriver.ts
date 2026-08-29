@@ -52,7 +52,7 @@ export interface ConnectorProbeResult {
 }
 
 /**
- * Visible degradation states. `awaiting-update` is the Anarlog
+ * Visible degradation states. `awaiting-update` is the local-store
  * unknown-schema contract: the store is present but its schema is outside
  * the tested range, so the driver reads only via stable fallback surfaces
  * until the connector ships an update. `needs-selection` is the Gmail

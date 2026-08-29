@@ -13,7 +13,7 @@ import type { EvidenceSpan, NomiorScope, SourceInput, SourceSegment } from "../c
 
 import {
   SEED_EXTERNAL_ID_PREFIX,
-  seedAnarlogAccount,
+  SEED_RECORDER,
   seedMeetings,
   seedMemories,
   seedReviewJobs,
@@ -82,8 +82,8 @@ const meetingProvenance = (
   connectorKind: "meeting_transcript" | "meeting_notes",
   externalId: string,
 ): Record<string, unknown> => ({
-  connector: "anarlog",
-  accountId: seedAnarlogAccount.accountId,
+  connector: SEED_RECORDER.driverKind,
+  accountId: SEED_RECORDER.accountId,
   externalId,
   connectorKind,
   links: {

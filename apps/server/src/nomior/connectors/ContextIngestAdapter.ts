@@ -1,7 +1,7 @@
 /**
  * ContextIngestAdapter — the one place connector output becomes context.
  *
- * Every driver (Anarlog, Gmail, Google Calendar) emits the same
+ * Every driver (Gmail, Google Calendar) emits the same
  * `ConnectorRecord`; this module turns one into a `SourceInput` and hands it to
  * `ContextIngest`. Nothing else in the connector tree knows the broker exists,
  * and nothing in the broker knows a connector exists.

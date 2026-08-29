@@ -1641,7 +1641,7 @@ function OpenCommandPaletteDialog(props: {
   actionItems.push({
     kind: "action",
     value: "action:nomior-connectors",
-    searchTerms: ["nomior", "connectors", "google", "calendar", "gmail", "anarlog", "oauth"],
+    searchTerms: ["nomior", "connectors", "google", "calendar", "gmail", "oauth"],
     title: "Open connectors",
     icon: <PlugZapIcon className={ITEM_ICON_CLASS} />,
     run: async () => {

@@ -3,7 +3,6 @@ import {
   CalendarIcon,
   CheckIcon,
   MailIcon,
-  MicIcon,
   MonitorOffIcon,
   RefreshCwIcon,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import { readLocalApi } from "../localApi";
 import {
   accountsOfKind,
   accountsSignature,
-  anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
   clientIdSaveIntent,
@@ -27,11 +25,9 @@ import {
   connectorKindLabel,
   connectorRowLine,
   connectorRowStatus,
-  connectorTypeLabel,
   CONNECTOR_KIND_ORDER,
   formatIngestedCount,
   formatLastSynced,
-  isGoogleConnector,
   needsGoogleSetup,
   showsDetail,
   statusPresentation,
@@ -43,19 +39,17 @@ import type { ConnectorKind, ConnectorsOverview } from "./types";
 import { usePortData } from "./usePortData";
 
 /**
- * One row shape for the whole page: what it is, where it runs, whether it is
- * working, what you can do about it. Accounts use the same four columns as the
- * connectors they sit under, so the page reads as one list rather than as a
- * stack of panels.
+ * One row shape for the whole page: what it is, whether it is working, what you
+ * can do about it. Accounts use the same columns as the connector they sit
+ * under, so the page reads as one list rather than a stack of panels.
  */
 const ROW_GRID =
-  "grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4 sm:grid-cols-[minmax(0,1fr)_7rem_2rem_9rem]";
+  "grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4 sm:grid-cols-[minmax(0,1fr)_2rem_9rem]";
 
 /** The action column: same width on every row, so the columns left of it line up. */
 const ACTION_CELL = "flex items-center justify-end gap-1";
 
-/** Columns that only exist on a wide enough page; the name column always does. */
-const SECONDARY_CELL = "hidden truncate text-xs text-muted-foreground sm:block";
+/** The status column only exists on a wide enough page; the name column always does. */
 const STATUS_CELL = "hidden justify-self-center sm:block";
 
 /** Accounts sit under their connector's name, not under a column of their own. */
@@ -102,7 +96,6 @@ function noticeFor(state: ConnectorActionState, scope: string): ActionNotice | n
 const KIND_ICON = {
   googleCalendar: CalendarIcon,
   gmail: MailIcon,
-  anarlog: MicIcon,
 } as const satisfies Record<ConnectorKind, typeof CalendarIcon>;
 
 /** Tick, warning or dash — the column you scan instead of reading the rows. */
@@ -144,29 +137,23 @@ export function ConnectorRow({
   const availability = {
     kind,
     google: overview.google,
-    anarlog: overview.anarlog,
     accounts: overview.accounts,
     canStartLocalOAuth: overview.canStartLocalOAuth,
   };
   const blocked = connectBlockedReason(availability);
   const line = connectorRowLine(availability);
-  // The two blockers the page states once above the list. A disabled button
-  // still has to point at its reason; it points at the one on screen.
-  const pageHintId = !isGoogleConnector(kind)
-    ? null
-    : !overview.canStartLocalOAuth
-      ? REMOTE_HINT_ID
-      : needsGoogleSetup(overview.google)
-        ? CLIENT_ID_NOTE_ID
-        : null;
+  // The two blockers the page states once, elsewhere. A disabled button still
+  // has to point at its reason; it points at the one on screen.
+  const pageHintId = !overview.canStartLocalOAuth
+    ? REMOTE_HINT_ID
+    : needsGoogleSetup(overview.google)
+      ? CLIENT_ID_NOTE_ID
+      : null;
   const scope = connectScope(kind);
   const isPending = state.pendingScope === scope;
   const notice = noticeFor(state, scope);
   const Icon = KIND_ICON[kind];
   const reasonId = `nomior-connect-reason-${kind}`;
-  // Anarlog is a file, not an account: once it is connected there is nothing
-  // to add, and the row below it carries the Sync and Disconnect it needs.
-  const hidesAction = !isGoogleConnector(kind) && accounts.length > 0;
 
   return (
     <div className="flex flex-col gap-1.5 py-2.5">
@@ -175,23 +162,20 @@ export function ConnectorRow({
           <Icon className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm">{connectorKindLabel(kind)}</span>
         </div>
-        <span className={SECONDARY_CELL}>{connectorTypeLabel(kind)}</span>
         <span className={STATUS_CELL}>
           <StatusGlyph kind={kind} overview={overview} />
         </span>
         <span className={ACTION_CELL}>
-          {hidesAction ? null : (
-            <Button
-              aria-describedby={pageHintId ?? (line === null ? undefined : reasonId)}
-              disabled={blocked !== null || isPending}
-              onClick={() => onConnect(kind)}
-              size="xs"
-              variant="outline"
-            >
-              {isPending ? <Spinner className="size-3.5" /> : null}
-              {isPending ? "Waiting for Google" : connectActionLabel(kind, accounts.length)}
-            </Button>
-          )}
+          <Button
+            aria-describedby={pageHintId ?? (line === null ? undefined : reasonId)}
+            disabled={blocked !== null || isPending}
+            onClick={() => onConnect(kind)}
+            size="xs"
+            variant="outline"
+          >
+            {isPending ? <Spinner className="size-3.5" /> : null}
+            {isPending ? "Waiting for Google" : connectActionLabel(accounts.length)}
+          </Button>
         </span>
       </div>
       {line === null ? null : (
@@ -235,7 +219,6 @@ export function ConnectorAccountRow({
             {formatLastSynced(account.lastSyncedAt)}
           </span>
         </span>
-        <span className={SECONDARY_CELL} />
         <span className={STATUS_CELL}>
           {account.status === "connected" ? (
             <CheckIcon aria-label={status.label} className="size-4 text-success-foreground" />
@@ -466,7 +449,6 @@ export function ConnectorList({
       )}
       <div className={cn(ROW_GRID, "pb-1.5 text-xs text-muted-foreground")}>
         <span>Connector</span>
-        <span className={SECONDARY_CELL}>Type</span>
         <span className={STATUS_CELL}>Status</span>
         <span />
       </div>
@@ -606,14 +588,9 @@ export function ConnectorsPanel() {
       if (overview === null) return;
       run(connectScope(kind), async () => {
         const url = authorizationUrlToOpen(await port.connectConnector(kind));
-        if (url === null) {
-          // A Google connector without a sign-in link is a broken response, not
-          // a quiet success; a local connector legitimately has nothing to open.
-          if (isGoogleConnector(kind)) {
-            throw new Error("The server did not return a sign-in link to open.");
-          }
-          return `${connectorKindLabel(kind)} connected.`;
-        }
+        // Every kind goes through Google, so a missing sign-in link is a broken
+        // response rather than a quiet success.
+        if (url === null) throw new Error("The server did not return a sign-in link to open.");
         const api = readLocalApi();
         if (api === undefined) throw new Error("This client cannot open a browser window.");
         await api.shell.openExternal(url);

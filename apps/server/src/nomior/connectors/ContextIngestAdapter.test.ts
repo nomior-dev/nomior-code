@@ -14,8 +14,8 @@ import {
 } from "./Records.ts";
 
 const projectAlpha: NomiorScope = { kind: "project", value: "proj-alpha" };
-const anarlog = ConnectorDriverKind.make("anarlog");
-const account = ConnectorAccountId.make("anarlog_local");
+const recorder = ConnectorDriverKind.make("recorder");
+const account = ConnectorAccountId.make("recorder_local");
 
 const record = (overrides: Partial<ConnectorRecord> = {}): ConnectorRecord => ({
   source: {
@@ -27,7 +27,7 @@ const record = (overrides: Partial<ConnectorRecord> = {}): ConnectorRecord => ({
     participants: [{ name: "Ivan", email: "ivan@example.com" }],
     links: { meetingSessionId: "s1", calendarEventId: "gcal-e1" },
     provenance: {
-      driverKind: anarlog,
+      driverKind: recorder,
       accountId: account,
       externalId: "s1",
       externalUpdatedAt: "2026-08-24T11:05:00.000Z",
@@ -64,7 +64,7 @@ describe("toBrokerSourceKind", () => {
 
 describe("connectorExternalId", () => {
   it("includes the account, since record ids are only unique per account", () => {
-    assert.strictEqual(connectorExternalId(record()), "anarlog:anarlog_local:s1");
+    assert.strictEqual(connectorExternalId(record()), "recorder:recorder_local:s1");
   });
 
   it("separates the same record id across two accounts of one driver", () => {
@@ -72,8 +72,8 @@ describe("connectorExternalId", () => {
       source: {
         ...record().source,
         provenance: {
-          driverKind: anarlog,
-          accountId: ConnectorAccountId.make("anarlog_work"),
+          driverKind: recorder,
+          accountId: ConnectorAccountId.make("recorder_work"),
           externalId: "s1",
         },
       },
@@ -101,9 +101,9 @@ describe("connectorRecordToSourceInput", () => {
     assert.strictEqual(input.kind, "meeting");
     assert.strictEqual(input.occurredAt, "2026-08-24T10:00:00.000Z");
     assert.deepStrictEqual(input.scopes, [projectAlpha]);
-    assert.strictEqual(input.provenance?.connector, "anarlog");
+    assert.strictEqual(input.provenance?.connector, "recorder");
     assert.strictEqual(input.provenance?.connectorKind, "meeting_transcript");
-    assert.strictEqual(input.provenance?.accountId, "anarlog_local");
+    assert.strictEqual(input.provenance?.accountId, "recorder_local");
   });
 
   it("drops blank chunks instead of failing the whole record", () => {

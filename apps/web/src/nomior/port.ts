@@ -60,7 +60,7 @@ export interface NomiorDataPort {
   listCalendarEvents(rangeStart: string, rangeEnd: string): Promise<readonly CalendarEventItem[]>;
 
   /**
-   * Meetings ingested by the Anarlog connector. Ordering is the panel's job,
+   * Meetings assembled from recorded sessions. Ordering is the panel's job,
    * not the port's.
    */
   listMeetings(): Promise<readonly MeetingItem[]>;
@@ -71,8 +71,8 @@ export interface NomiorDataPort {
   /** Empty string clears the id, which disables the Google flow entirely. */
   setGoogleClientId(clientId: string): Promise<void>;
   /**
-   * Resolves to the authorization URL the client must open, or null when the
-   * connector needs no browser step (Anarlog is a local store, not a sign-in).
+   * Resolves to the authorization URL the client must open. Null would mean a
+   * connector with no browser step, which no kind is today.
    */
   connectConnector(kind: ConnectorKind): Promise<string | null>;
   disconnectConnector(accountId: string): Promise<void>;

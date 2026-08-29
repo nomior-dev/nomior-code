@@ -113,22 +113,19 @@ export const seedGoogleAccounts: ReadonlyArray<SeedGoogleAccount> = [
   },
 ];
 
-/** The local transcript store the meetings come from. */
-export const seedAnarlogAccount: SeedConnectorAccount = {
-  accountId: "anarlog-local",
-  driverKind: "anarlog",
-  displayName: "Anarlog (this machine)",
-  capsule: "nomior-code",
-  config: { storePath: "~/Library/Application Support/Anarlog/anarlog.db" },
-  connectedAt: "2026-08-09T15:02:00.000Z",
-  updatedAt: "2026-08-29T08:56:00.000Z",
-  cursors: [{ streamId: "notes", cursor: "anarlog-rowid-4821" }],
-};
+/**
+ * Where the seeded meetings came from.
+ *
+ * Nomior's own recorder, which is not a connector: there is nothing to sign in
+ * to and nothing for the connectors page to show, so it seeds no account row —
+ * only the provenance the meetings and their context sources carry.
+ */
+export const SEED_RECORDER = {
+  driverKind: "recorder",
+  accountId: "recorder-local",
+} as const;
 
-export const seedConnectorAccounts: ReadonlyArray<SeedConnectorAccount> = [
-  ...seedGoogleAccounts,
-  seedAnarlogAccount,
-];
+export const seedConnectorAccounts: ReadonlyArray<SeedConnectorAccount> = [...seedGoogleAccounts];
 
 // ---------------------------------------------------------------------------
 // Calendar events
@@ -203,14 +200,14 @@ export const seedCalendarEvents: ReadonlyArray<SeedCalendarEvent> = [
     meetingId: "meet-review-engine-0825",
   },
   {
-    eventId: "evt-anarlog-0826",
+    eventId: "evt-recorder-0826",
     accountId: "google-work",
-    title: "Anarlog connector integration",
+    title: "Recorder pipeline",
     startsAt: "2026-08-26T16:00:00.000Z",
     endsAt: "2026-08-26T17:00:00.000Z",
     recurringSeriesId: null,
     attendees: ["ivan@nomior.example", "oleg@nomior.example"],
-    meetingId: "meet-anarlog-0826",
+    meetingId: "meet-recorder-0826",
   },
   {
     // Last week's instance of the Friday series: history the week grid does
@@ -446,19 +443,19 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
     transcript: [
       {
         speaker: "Иван",
-        text: "Коннектор Anarlog читает их локальную базу SQLite и markdown-экспорт. В их базу мы не пишем никогда, только читаем.",
+        text: "Запись идёт локально: системный аудиопоток и микрофон, дальше распознавание на этой же машине. Наружу не уходит ничего.",
         tsStart: 10,
         tsEnd: 32,
       },
       {
         speaker: "Олег",
-        text: "Если схема их базы уезжает за протестированный диапазон, коннектор переключается на markdown-фолбэк и показывает статус ожидания обновления, а не падает.",
+        text: "Если распознавание не справляется, встреча всё равно сохраняется — аудио и черновой текст, со статусом ожидания обработки, а не с ошибкой.",
         tsStart: 32,
         tsEnd: 58,
       },
       {
         speaker: "Даша",
-        text: "Тогда в панели коннекторов нужен видимый бейдж, иначе пользователь решит, что всё сломалось и мы молча потеряли его встречи.",
+        text: "Тогда нужен видимый бейдж, иначе пользователь решит, что всё сломалось и мы молча потеряли его встречи.",
         tsStart: 58,
         tsEnd: 82,
       },
@@ -471,8 +468,8 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
     ],
     notes: [
       {
-        section: "Anarlog",
-        text: "Читаем только: SQLite плюс markdown-экспорт. Неизвестная схема переводит коннектор в режим awaiting-update с видимым бейджем в UI.",
+        section: "Запись",
+        text: "Всё локально: системный звук плюс микрофон, распознавание на устройстве. Неудачное распознавание оставляет встречу в статусе awaiting-update с видимым бейджем.",
       },
       {
         section: "Правило",
@@ -482,13 +479,13 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
     decisions: [
       {
         statement:
-          "Неизвестная схема базы Anarlog переводит коннектор в markdown-фолбэк со статусом awaiting-update, а не в ошибку.",
+          "Неудачное распознавание оставляет встречу с черновым текстом в статусе awaiting-update, а не в ошибке.",
         turnIndex: 1,
       },
     ],
     actionItems: [
       {
-        description: "Добавить бейдж awaiting-update в панель коннекторов",
+        description: "Добавить бейдж awaiting-update в список встреч",
         assignee: "Даша",
         dueAt: "2026-08-31T17:00:00.000Z",
         status: "open",
@@ -575,12 +572,12 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
     ],
   },
   {
-    meetingId: "meet-anarlog-0826",
+    meetingId: "meet-recorder-0826",
     capsule: "nomior-code",
-    title: "Anarlog connector integration",
+    title: "Recorder pipeline",
     language: "en",
     seriesId: null,
-    calendarEventId: "evt-anarlog-0826",
+    calendarEventId: "evt-recorder-0826",
     startsAt: "2026-08-26T16:00:00.000Z",
     endsAt: "2026-08-26T16:58:00.000Z",
     participants: ["Ivan", "Oleg"],
@@ -933,7 +930,7 @@ export const seedMemories: ReadonlyArray<SeedMemory> = [
     capsule: "nomior-code",
     status: "verified",
     title: "Connector degradation is visible",
-    text: "A connector that cannot read its source degrades visibly: Anarlog falls back to the markdown export with an awaiting-update badge, Gmail refuses to sync until selectors are chosen. Silent idling is never acceptable.",
+    text: "A source that cannot be read degrades visibly: a recording whose transcription failed keeps its audio and a draft under an awaiting-update badge, Gmail refuses to sync until selectors are chosen. Silent idling is never acceptable.",
     capturedAt: "2026-08-27T09:46:00.000Z",
     sourceLabel: "Ежедневный статус — 2026-08-27",
     producer: "context-tool",
@@ -1393,8 +1390,8 @@ export const seedContextProbes: ReadonlyArray<SeedContextProbe> = [
     expectAnyOf: ["meeting:meet-standup-0824", "notes:meet-standup-0824"],
   },
   {
-    id: "probe-anarlog-schema",
-    question: "что делает коннектор при неизвестной схеме базы Anarlog",
+    id: "probe-recorder-fallback",
+    question: "что происходит, когда распознавание записи не удалось",
     capsule: "nomior-code",
     budgetTokens: 700,
     expectAnyOf: ["meeting:meet-standup-0827", "notes:meet-standup-0827"],
@@ -1404,7 +1401,7 @@ export const seedContextProbes: ReadonlyArray<SeedContextProbe> = [
     question: "what happens when the calendar sync token expires with 410 GONE",
     capsule: "nomior-code",
     budgetTokens: 700,
-    expectAnyOf: ["meeting:meet-anarlog-0826", "notes:meet-anarlog-0826"],
+    expectAnyOf: ["meeting:meet-recorder-0826", "notes:meet-recorder-0826"],
   },
   {
     id: "probe-master-loudness",

@@ -16,7 +16,6 @@
  */
 import {
   NomiorRequestError,
-  type NomiorAnarlogState,
   type NomiorConnectorAccount,
   type NomiorConnectorKind,
   type NomiorConnectorsListResult,
@@ -27,7 +26,6 @@ import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
@@ -40,9 +38,6 @@ import type { ConnectorCursorStore } from "../connectors/ConnectorCursorStore.ts
 import { runConnectorSync } from "../connectors/ConnectorSyncRunner.ts";
 import type { ConnectorSyncRunStore } from "../connectors/ConnectorSyncRunStore.ts";
 import { ConnectorAccountId, ConnectorDriverKind } from "../connectors/Records.ts";
-import { isKnownAnarlogSchemaVersion } from "../connectors/anarlog/AnarlogSchema.ts";
-import { locateAnarlogStore } from "../connectors/anarlog/AnarlogLocator.ts";
-import { openAnarlogStore } from "../connectors/anarlog/AnarlogStore.ts";
 import {
   beginGoogleLoopbackAuthorization,
   completeGoogleLoopbackAuthorization,
@@ -67,8 +62,7 @@ import {
  *
  * The client id they need is a value in a store and can be unset, and a layer
  * that failed on an unset id would take the whole websocket connection down on
- * first run. Null is the Anarlog path, whose driver never reads the config but
- * still needs the union of every built-in driver's environment present.
+ * first run, so an unset id builds ports that fail per call instead.
  */
 const googlePortsFor = (clientId: string | null) =>
   Layer.mergeAll(GoogleCalendarPortLive, GmailPortLive).pipe(
@@ -89,8 +83,8 @@ const NON_RETRYABLE_TAGS: ReadonlySet<string> = new Set([
   // Gmail without chosen labels/senders/threads. Sync stays refused until the
   // user picks something.
   "ConnectorSelectorRequiredError",
-  // An Anarlog store outside the tested schema range. A newer Anarlog needs a
-  // newer connector, not another attempt.
+  // A source whose schema is outside the tested range. That needs a newer
+  // connector, not another attempt.
   "ConnectorSchemaVersionError",
 ]);
 
@@ -122,12 +116,10 @@ const refuse = (message: string) => new NomiorRequestError({ message, retryable:
  * The wire's kinds are exactly the driver slugs of the connectors this build
  * ships, so the mapping is an identity check rather than a translation.
  */
-const WIRE_KINDS: ReadonlySet<string> = new Set(["googleCalendar", "gmail", "anarlog"]);
+const WIRE_KINDS: ReadonlySet<string> = new Set(["googleCalendar", "gmail"]);
 
 const isWireKind = (driverKind: string): driverKind is NomiorConnectorKind =>
   WIRE_KINDS.has(driverKind);
-
-const ANARLOG_KIND = ConnectorDriverKind.make("anarlog");
 
 /** Read scope requested per Google connector. Read-only, one product each. */
 const googleScopes = (kind: "googleCalendar" | "gmail"): ReadonlyArray<string> =>
@@ -151,65 +143,6 @@ const toWireAccount = (
   // and nothing else. Null is the honest answer until one does.
   detail: null,
 });
-
-/**
- * Where Anarlog's store is, and whether we may read it.
- *
- * `unsupportedSchema` covers both halves of "found but unreadable": a schema
- * outside the tested range, and a store with no readable migration ledger at
- * all. Neither is `notFound` — we detected the store and refuse to misread it.
- */
-export const detectAnarlogState = Effect.fn("nomior.rpc.detectAnarlogState")(function* (input: {
-  readonly overridePath: string | undefined;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const notFound = {
-    detection: "notFound",
-    storePath: null,
-    schemaVersion: null,
-  } as const satisfies NomiorAnarlogState;
-
-  const located = yield* locateAnarlogStore(input);
-  if (Option.isNone(located)) {
-    return notFound;
-  }
-  const storePath = located.value;
-  // `locateAnarlogStore` returns a configured override without checking it, so
-  // a stale override reads as "store missing" rather than a broken open.
-  const exists = yield* fs.exists(storePath).pipe(Effect.orElseSucceed(() => false));
-  if (!exists) {
-    return notFound;
-  }
-
-  const version = yield* Effect.scoped(
-    Effect.flatMap(openAnarlogStore(storePath), (store) => store.schemaVersion),
-  ).pipe(Effect.orElseSucceed(() => Option.none<bigint>()));
-
-  if (Option.isNone(version) || !isKnownAnarlogSchemaVersion(version.value)) {
-    return {
-      detection: "unsupportedSchema",
-      storePath,
-      // Below `Number.MAX_SAFE_INTEGER` for any plausible `YYYYMMDDHHMMSS`
-      // ledger version, and the ceiling we compare against proves the scale.
-      schemaVersion: Option.isNone(version) ? null : Number(version.value),
-    } as const satisfies NomiorAnarlogState;
-  }
-
-  return {
-    detection: "found",
-    storePath,
-    schemaVersion: Number(version.value),
-  } as const satisfies NomiorAnarlogState;
-});
-
-/** The Anarlog driver's one config key, read without decoding the envelope. */
-const readStorePath = (config: unknown): string | undefined => {
-  if (typeof config !== "object" || config === null) {
-    return undefined;
-  }
-  const storePath = (config as { readonly storePath?: unknown }).storePath;
-  return typeof storePath === "string" && storePath.length > 0 ? storePath : undefined;
-};
 
 export interface ConnectorListDeps {
   readonly accounts: ConnectorAccountStore["Service"];
@@ -236,14 +169,6 @@ export const listConnectors = Effect.fn("nomior.rpc.listConnectors")(function* (
     Effect.mapError(failed("The Google client id is unreadable.", true)),
   );
 
-  // Resolved before the account loop: an Anarlog row's stored status says what
-  // was true when it was connected, and the store can have moved or been
-  // uninstalled since. Detection is the live fact and wins.
-  const anarlogAccount = stored.find((account) => account.driverKind === ANARLOG_KIND);
-  const overridePath =
-    anarlogAccount === undefined ? undefined : readStorePath(anarlogAccount.config);
-  const anarlog = yield* detectAnarlogState({ overridePath });
-
   const accounts: Array<NomiorConnectorAccount> = [];
   for (const account of stored) {
     if (!isWireKind(account.driverKind)) {
@@ -255,22 +180,7 @@ export const listConnectors = Effect.fn("nomior.rpc.listConnectors")(function* (
       });
       continue;
     }
-    const wire = toWireAccount(account, account.driverKind, lastSyncedAt.get(account.accountId));
-    accounts.push(
-      account.driverKind === ANARLOG_KIND && anarlog.detection !== "found"
-        ? {
-            ...wire,
-            // Reporting `connected` here would promise a store that is not
-            // there, and the next sync would fail for a reason the panel never
-            // showed. `error`, not `revoked`: putting the store back fixes it.
-            status: "error",
-            detail:
-              anarlog.detection === "unsupportedSchema"
-                ? `The store is schema v${String(anarlog.schemaVersion)}, newer than this build reads.`
-                : "The store is no longer where it was connected from.",
-          }
-        : wire,
-    );
+    accounts.push(toWireAccount(account, account.driverKind, lastSyncedAt.get(account.accountId)));
   }
 
   // An operator-set id wins over the bundled one: pointing an environment at
@@ -289,7 +199,6 @@ export const listConnectors = Effect.fn("nomior.rpc.listConnectors")(function* (
   return {
     accounts,
     google,
-    anarlog,
     canStartLocalOAuth: deps.canStartLocalOAuth,
   } satisfies NomiorConnectorsListResult;
 });
@@ -362,9 +271,8 @@ const googleAddress = Effect.fn("nomior.rpc.googleAddress")(function* (
  * but unsynced is recoverable from the Sync button beside it, where refusing
  * the connect would throw away a credential the user just granted.
  *
- * Google's call site is already inside the fiber that waits for the redirect,
- * so this stays inline: Anarlog reads a local file and finishes before connect
- * answers, and Google's runs in the background it was already in.
+ * The call site is already inside the fiber that waits for the redirect, so
+ * this stays inline: it runs in the background the connect was already in.
  */
 const firstSync = (account: ConnectorAccount, clientId: string | null) =>
   runConnectorSync(account).pipe(
@@ -392,51 +300,6 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
   deps: ConnectorConnectDeps,
   input: { readonly kind: NomiorConnectorKind },
 ) {
-  // Anarlog is not signed into: the store is on this machine or it is not.
-  // Connecting it records the detected path as an account so a sync has
-  // something to run against — without this the store is detected forever and
-  // never ingested.
-  if (input.kind === "anarlog") {
-    // Same resolution `listConnectors` uses, so the panel can never show a
-    // store at one path and connect a different one: an existing account's
-    // configured path wins, otherwise the platform's default locations.
-    const existing = yield* deps.accounts
-      .listByDriver(ANARLOG_KIND)
-      .pipe(Effect.mapError(failed("Could not read the Anarlog account.", true)));
-    const state = yield* detectAnarlogState({
-      overridePath: existing[0] === undefined ? undefined : readStorePath(existing[0].config),
-    }).pipe(Effect.mapError(failed("Could not look for the Anarlog store.", true)));
-    if (state.detection === "unsupportedSchema") {
-      return yield* refuse(
-        `The Anarlog store on this machine is schema v${String(state.schemaVersion)}, newer than this build reads. Update Nomior Code rather than risk misreading it.`,
-      );
-    }
-    if (state.detection !== "found" || state.storePath === null) {
-      return yield* refuse(
-        "No Anarlog store on this machine. Install Anarlog and record a meeting, then connect again.",
-      );
-    }
-    const now = DateTime.formatIso(yield* DateTime.now);
-    const accountId =
-      existing[0]?.accountId ??
-      (yield* makeAccountId(input.kind).pipe(
-        Effect.mapError(failed("Could not record the Anarlog store.", true)),
-      ));
-    const account: ConnectorAccount = {
-      accountId,
-      driverKind: ANARLOG_KIND,
-      displayName: state.storePath,
-      config: { storePath: state.storePath },
-      status: "connected",
-      createdAt: now,
-      updatedAt: now,
-    };
-    yield* deps.accounts
-      .upsert(account)
-      .pipe(Effect.mapError(failed("Could not record the Anarlog store.", true)));
-    yield* firstSync(account, null);
-    return { authorizationUrl: null };
-  }
   if (!deps.canStartLocalOAuth) {
     return yield* refuse(
       "Google sign-in redirects to a listener on the server's own machine, so it has to be started from a client running there.",
@@ -468,8 +331,7 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
     Effect.mapError(failed("Could not start Google authorization.", true)),
   );
 
-  // Bound out here because the narrowing the Anarlog branch's early return
-  // gives `input.kind` does not survive into the closure below.
+  // Bound out here so the closure below keeps the narrowed kind.
   const googleKind = input.kind;
   const driverKind = ConnectorDriverKind.make(googleKind);
   yield* Effect.gen(function* () {
@@ -577,9 +439,8 @@ export const syncConnector = Effect.fn("nomior.rpc.syncConnector")(function* (
   const clientId = yield* deps.clientIds.get.pipe(
     Effect.mapError(failed("The Google client id is unreadable.", true)),
   );
-  const isGoogle = account.value.driverKind !== ANARLOG_KIND;
   const effectiveClientId = Option.isSome(clientId) ? clientId.value : bundledGoogleClientId;
-  if (isGoogle && effectiveClientId === null) {
+  if (effectiveClientId === null) {
     return yield* refuse("Set a Google OAuth client id before syncing a Google account.");
   }
 

@@ -7,7 +7,7 @@
  * between generated and hand-written sample data stays visible, and so this
  * file can be deleted whole once the scenario grows a meetings section.
  *
- * The set exists to make every hole the Anarlog connector really leaves
+ * The set exists to make every hole a recorded session really leaves
  * reachable in the UI: a fully diarized and timed session, one diarization
  * never attributed, a markdown fallback with neither timing nor a start time, a
  * session nobody took notes in, and one whose recording came back empty. Ids
@@ -131,47 +131,47 @@ export const meetingScenarios: readonly MeetingScenario[] = [
     ],
   },
   {
-    id: "meet-anarlog-0826",
-    title: "Anarlog connector integration",
+    id: "meet-recorder-0826",
+    title: "Recorder pipeline",
     dayOffset: 2,
     startHour: 16,
     startMinute: 0,
     participants: [IVAN, THEO, JULIUS],
-    calendarEventId: "evt-anarlog-0826",
+    calendarEventId: "evt-recorder-0826",
     notes: [
-      "## Anarlog connector",
+      "## Recorder",
       "",
-      "The desktop app keeps a local SQLite store per session. We read it, we never write to it.",
+      "Capture is local: the system audio tap plus the microphone, transcribed on this machine.",
       "",
-      "- Ingest is one-way. A meeting deleted in Anarlog stays in Nomior until the user removes it here.",
+      "- A failed transcription keeps the audio and a draft rather than dropping the session.",
       "- Diarization is best effort. Plenty of turns come back with no speaker, and the UI has to **say so** instead of guessing a name.",
-      "- The markdown fallback carries no timing at all. Do not fabricate offsets for it.",
+      "- A draft carries no timing at all. Do not fabricate offsets for it.",
       "",
       "## Next",
       "",
       "1. Match meetings to calendar events on start time plus participant overlap.",
       "2. Decide what happens when the same session is ingested twice.",
     ].join("\n"),
-    // Excerpted: the connector keeps every turn, the fixture keeps the ones
-    // that read. The hour-long gap is where the working session sat.
+    // Excerpted: a recording keeps every turn, the fixture keeps the ones that
+    // read. The hour-long gap is where the working session sat.
     turns: [
       {
         speaker: "Ivan",
         startMs: 0,
         endMs: 34_000,
-        text: "The store is SQLite, one file per install, and Anarlog holds it open the whole time it is recording.",
+        text: "We tap the system output and the microphone as two streams, and mix them only after transcription.",
       },
       {
         speaker: null,
         startMs: 36_000,
         endMs: 71_000,
-        text: "Then we open it read-only and copy out of it. If we ever write to that file we are the bug in someone else's app.",
+        text: "And it all stays on the machine. The audio never leaves it, and neither does the text.",
       },
       {
         speaker: "Ivan",
         startMs: 74_000,
         endMs: 118_000,
-        text: "Read-only, and the ingest is one-way. Deleting a meeting in Anarlog does not delete it here, and I think that is the right default.",
+        text: "Two passes: a fast one while the meeting runs, a careful one after it ends. The second one replaces the first.",
       },
       {
         speaker: null,

@@ -44,7 +44,7 @@ layer("nomior integration: one memory-candidate store, two producers", (it) => {
       const store = yield* MemoryCandidateStore;
 
       const receipt = yield* port.remember({
-        text: "Anarlog transcripts are the source of truth for meeting decisions.",
+        text: "Recorded transcripts are the source of truth for meeting decisions.",
         scope: portScope,
       });
       assert.strictEqual(receipt.status, "pending_approval");

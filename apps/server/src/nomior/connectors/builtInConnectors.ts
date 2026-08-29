@@ -7,7 +7,6 @@
  *
  * @module nomior/connectors/builtInConnectors
  */
-import { AnarlogDriver, type AnarlogDriverEnv } from "./anarlog/AnarlogDriver.ts";
 import type { AnyConnectorDriver } from "./ConnectorDriver.ts";
 import { GmailDriver, type GmailDriverEnv } from "./google/GmailDriver.ts";
 import {
@@ -15,14 +14,13 @@ import {
   type GoogleCalendarDriverEnv,
 } from "./google/GoogleCalendarDriver.ts";
 
-export type BuiltInConnectorsEnv = AnarlogDriverEnv | GoogleCalendarDriverEnv | GmailDriverEnv;
+export type BuiltInConnectorsEnv = GoogleCalendarDriverEnv | GmailDriverEnv;
 
 /**
  * Ordered list of built-in connector drivers. Order is presentation-only;
  * lookup is by `driverKind`.
  */
 export const BUILT_IN_CONNECTORS: ReadonlyArray<AnyConnectorDriver<BuiltInConnectorsEnv>> = [
-  AnarlogDriver,
   GoogleCalendarDriver,
   GmailDriver,
 ];

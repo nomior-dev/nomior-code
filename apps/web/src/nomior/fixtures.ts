@@ -18,7 +18,6 @@
  */
 import { applyCandidateResolution } from "./contextMemory.logic";
 import {
-  ANARLOG_FOUND,
   GOOGLE_CLIENT_CONFIGURED,
   GOOGLE_CLIENT_UNCONFIGURED,
   connectorAccountScenarios,
@@ -265,7 +264,6 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
       Promise.resolve({
         accounts,
         google,
-        anarlog: ANARLOG_FOUND,
         // The fixture port is the browser's own sample data, so nothing about
         // it is remote; the remote copy is exercised by the panel tests.
         canStartLocalOAuth: true,

@@ -90,7 +90,7 @@ const meetingSource = (
   occurredAt:
     overrides.occurredAt === undefined ? "2026-08-25T09:30:00.000Z" : overrides.occurredAt,
   provenance: {
-    connector: "anarlog",
+    connector: "recorder",
     connectorKind: "meeting_transcript",
     links: {
       ...(overrides.sessionId === null ? {} : { meetingSessionId: overrides.sessionId ?? id }),
@@ -108,7 +108,7 @@ const notesSource = (id: string, sessionId: string): SourceRow => ({
   title: `${id} — notes`,
   occurredAt: "2026-08-25T09:30:00.000Z",
   provenance: {
-    connector: "anarlog",
+    connector: "recorder",
     connectorKind: "meeting_notes",
     links: { meetingSessionId: sessionId },
     participants: [],
@@ -161,7 +161,7 @@ it.effect("ignores sources that are not connector meetings", () =>
         kind: "meeting",
         title: "Hand ingested",
         occurredAt: "2026-08-25T09:30:00.000Z",
-        provenance: { connector: "anarlog" },
+        provenance: { connector: "recorder" },
       },
       [{ ordinal: 0, text: "text" }],
     );
@@ -317,7 +317,7 @@ it("keeps a malformed participants blob from costing the whole list", () => {
   assert.deepEqual(parseParticipants(null), []);
   assert.deepEqual(parseParticipants("not json"), []);
   assert.deepEqual(parseParticipants('{"name":"Ivan"}'), []);
-  // Anarlog knows a name or an email, rarely both; entries with neither render
+  // A source knows a name or an email, rarely both; entries with neither render
   // as an empty chip, so they are dropped.
   assert.deepEqual(parseParticipants('["Ivan", {}, {"name":"Dasha"}, {"email":"o@e.example"}]'), [
     { name: "Dasha", email: null },

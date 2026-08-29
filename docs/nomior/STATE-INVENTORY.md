@@ -37,10 +37,6 @@ segment text from connectors, never raw filesystem or credential material.
 | ----------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Google OAuth token sets (`nomior-google-token-<accountId>`) | upstream `ServerSecretStore` (0600 files under the server secrets dir) | No — re-issued by reconnecting the account; never stored elsewhere. |
 
-Reads with no owned state: the Anarlog connector opens the Anarlog app's
-SQLite store strictly `readOnly` and its markdown export read-only; neither
-is Nomior state.
-
 ## Retired
 
 `nomior_connector_migrations` was the connectors track's own migrator ledger.

@@ -8,10 +8,10 @@ import {
   titleSimilarity,
 } from "./MeetingAssembly.ts";
 
-const anarlogKind = ConnectorDriverKind.make("anarlog");
+const recorderKind = ConnectorDriverKind.make("recorder");
 const calendarKind = ConnectorDriverKind.make("googleCalendar");
 const gmailKind = ConnectorDriverKind.make("gmail");
-const anarlogAccount = ConnectorAccountId.make("anarlog_local");
+const recorderAccount = ConnectorAccountId.make("recorder_local");
 const calendarAccount = ConnectorAccountId.make("google_work");
 const gmailAccount = ConnectorAccountId.make("gmail_work");
 
@@ -23,7 +23,7 @@ const transcript = (overrides: Partial<ConnectorSource>): ConnectorSource => ({
   endedAt: "2026-08-24T10:58:00.000Z",
   participants: [{ name: "Ivan", email: "ivan@example.com" }, { email: "sam@example.com" }],
   links: { meetingSessionId: "s1" },
-  provenance: { driverKind: anarlogKind, accountId: anarlogAccount, externalId: "s1" },
+  provenance: { driverKind: recorderKind, accountId: recorderAccount, externalId: "s1" },
   ...overrides,
 });
 

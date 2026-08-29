@@ -9,7 +9,7 @@
  * Two decisions this module owns, because nothing above it can:
  *
  * - **Stream id.** Each driver here exposes exactly one feed per account (one
- *   calendar, one mailbox, one Anarlog store), so the cursor lives under a
+ *   calendar, one mailbox), so the cursor lives under a
  *   single `default` stream. A driver that grows several feeds must pick its
  *   own ids and this becomes its caller's problem, not a rename.
  * - **Scope.** `SourceInput` refuses an unscoped source and the product has no

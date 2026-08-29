@@ -13,7 +13,7 @@ import { IsoDateTime, TrimmedNonEmptyString } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 
 /**
- * Open branded slug naming a connector driver implementation (`anarlog`,
+ * Open branded slug naming a connector driver implementation (
  * `googleCalendar`, `gmail`). Same slug discipline as
  * `ProviderDriverKind` — validated shape, not membership; the registry
  * downgrades unknown kinds gracefully.
@@ -35,7 +35,7 @@ export const GOOGLE_CALENDAR_DRIVER_KIND = ConnectorDriverKind.make("googleCalen
 
 /**
  * One connected account of a driver. Multiple accounts per driver are first
- * class (two Google accounts, two Anarlog store paths); branded separately
+ * class (two Google accounts on one machine); branded separately
  * from `ConnectorDriverKind` so the two can never be confused.
  */
 export const ConnectorAccountId = slugSchema.pipe(Schema.brand("ConnectorAccountId"));

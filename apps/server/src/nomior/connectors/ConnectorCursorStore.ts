@@ -3,7 +3,7 @@
  *
  * One row per (account, stream) in `nomior_connector_cursors`. A stream is
  * a driver-defined sub-feed of an account (a Google calendar id, a Gmail
- * selector set, an Anarlog store) so one account can hold several
+ * selector set) so one account can hold several
  * independent cursors. Cursor text is driver-opaque.
  *
  * @module nomior/connectors/ConnectorCursorStore
