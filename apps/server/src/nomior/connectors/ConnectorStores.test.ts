@@ -26,6 +26,7 @@ const makeAccount = (
   driverKind: gmailKind,
   displayName: null,
   config,
+  projectId: null,
   status: "connected",
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",

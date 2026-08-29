@@ -24,6 +24,7 @@ import type { ConnectorAccountItem } from "./types";
 const account = (
   overrides: Partial<ConnectorAccountItem> & Pick<ConnectorAccountItem, "id">,
 ): ConnectorAccountItem => ({
+  projectId: null,
   kind: "googleCalendar",
   displayName: overrides.id,
   status: "connected",

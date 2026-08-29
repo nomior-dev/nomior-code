@@ -33,6 +33,7 @@ export function createNomiorCommandRunner(
     setGoogleClientId: (input) => run(nomiorEnvironment.setGoogleClientId, input),
     connectConnector: (input) => run(nomiorEnvironment.connectConnector, input),
     disconnectConnector: (input) => run(nomiorEnvironment.disconnectConnector, input),
+    setConnectorProject: (input) => run(nomiorEnvironment.setConnectorProject, input),
     syncConnector: (input) => run(nomiorEnvironment.syncConnector, input),
     listCalendarAccounts: () => run(nomiorEnvironment.listCalendarAccounts, undefined),
     listCalendarEvents: (input) => run(nomiorEnvironment.listCalendarEvents, input),

@@ -24,6 +24,7 @@ import type {
   NomiorConnectorAccountInput,
   NomiorConnectorConnectInput,
   NomiorConnectorConnectResult,
+  NomiorConnectorSetProjectInput,
   NomiorConnectorsListResult,
   NomiorConnectorSyncResult,
   NomiorGoogleClientIdSetInput,
@@ -56,6 +57,7 @@ export interface NomiorCommandRunner {
   readonly connectConnector: (
     input: NomiorConnectorConnectInput,
   ) => Settled<NomiorConnectorConnectResult>;
+  readonly setConnectorProject: (input: NomiorConnectorSetProjectInput) => Settled<void>;
   readonly disconnectConnector: (input: NomiorConnectorAccountInput) => Settled<void>;
   readonly syncConnector: (
     input: NomiorConnectorAccountInput,
@@ -110,6 +112,14 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
     },
     connectConnector: async (kind) =>
       (await value(runner.connectConnector({ kind }))).authorizationUrl,
+    setConnectorProject: async (accountId, projectId) => {
+      await value(
+        runner.setConnectorProject({
+          accountId,
+          projectId: projectId === null ? null : ProjectId.make(projectId),
+        }),
+      );
+    },
     disconnectConnector: async (accountId) => {
       await value(runner.disconnectConnector({ accountId }));
     },

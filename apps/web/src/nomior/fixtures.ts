@@ -164,6 +164,7 @@ function connectorAccounts(now: Date): ConnectorAccountItem[] {
     kind: account.kind,
     displayName: account.displayName,
     status: account.status,
+    projectId: account.projectId,
     lastSyncedAt:
       account.lastSyncedAgoHours === null ? null : hoursAgo(now, account.lastSyncedAgoHours),
     detail: account.detail,
@@ -270,6 +271,12 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
       Promise.reject(
         new Error("Sample data can't connect an account. Pair an environment and try again."),
       ),
+    setConnectorProject: (accountId, projectId) => {
+      accounts = accounts.map((entry) =>
+        entry.id === accountId ? { ...entry, projectId } : entry,
+      );
+      return Promise.resolve();
+    },
     disconnectConnector: (accountId) => {
       accounts = accounts.filter((account) => account.id !== accountId);
       return Promise.resolve();

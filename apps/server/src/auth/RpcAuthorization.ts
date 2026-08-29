@@ -148,6 +148,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.nomiorGoogleClientIdSet]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorConnectorConnect]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorConnectorDisconnect]: AuthOrchestrationOperateScope,
+  [WS_METHODS.nomiorConnectorSetProject]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorConnectorSync]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorInstancesList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorInstanceSetPinned]: AuthOrchestrationOperateScope,

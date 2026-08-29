@@ -77,6 +77,11 @@ export interface NomiorDataPort {
    * connector with no browser step, which no kind is today.
    */
   connectConnector(kind: ConnectorKind): Promise<string | null>;
+  /**
+   * File an account's material under a project, or detach it with null. Only
+   * future syncs change scope; what is already ingested keeps what it has.
+   */
+  setConnectorProject(accountId: string, projectId: string | null): Promise<void>;
   disconnectConnector(accountId: string): Promise<void>;
   /** Resolves to the number of sources this run wrote or refreshed. */
   syncConnector(accountId: string): Promise<number>;

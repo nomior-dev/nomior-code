@@ -182,6 +182,17 @@ export const makeNomiorPanelHandlers = ({
       }),
     ),
 
+  [WS_METHODS.nomiorConnectorSetProject]: (input: {
+    readonly accountId: string;
+    readonly projectId: ProjectId | null;
+  }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorConnectorSetProject,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.setConnectorProject(yield* ConnectorAccountStore, input);
+      }),
+    ),
+
   [WS_METHODS.nomiorConnectorSync]: (input: { readonly accountId: string }) =>
     observeRpcEffect(
       WS_METHODS.nomiorConnectorSync,

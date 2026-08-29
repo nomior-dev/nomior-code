@@ -11,6 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 import { readLocalApi } from "../localApi";
@@ -35,7 +42,7 @@ import {
 import { fixtureNomiorPort } from "./fixtures";
 import { useNomiorPort } from "./port";
 import { PortErrorState } from "./PortErrorState";
-import type { ConnectorKind, ConnectorsOverview } from "./types";
+import type { ConnectorKind, ConnectorsOverview, ProjectOption } from "./types";
 import { usePortData } from "./usePortData";
 
 /**
@@ -193,15 +200,68 @@ export function ConnectorRow({
  * place rather than in a dialog: the row already says which account it is, and
  * a dialog would move that question away from its answer.
  */
+/**
+ * Which project this account's material is filed under.
+ *
+ * Not cosmetic: context search is per project, so an unfiled account syncs
+ * into a scope nothing reads. The row says that outright rather than leaving
+ * the user to wonder why a synced mailbox answers nothing.
+ */
+function AccountProjectSelect({
+  account,
+  disabled,
+  projects,
+  onSetProject,
+}: {
+  account: ConnectorsOverview["accounts"][number];
+  disabled: boolean;
+  projects: readonly ProjectOption[];
+  onSetProject: (accountId: string, projectId: string | null) => void;
+}) {
+  const items = [
+    { label: "No project", value: UNFILED },
+    ...projects.map((project) => ({ label: project.title, value: project.id })),
+  ];
+  return (
+    <Select
+      disabled={disabled}
+      items={items}
+      onValueChange={(next: string | null) => {
+        if (next === null) return;
+        onSetProject(account.id, next === UNFILED ? null : next);
+      }}
+      value={account.projectId ?? UNFILED}
+    >
+      <SelectTrigger aria-label={`Project for ${account.displayName}`} size="xs" variant="ghost">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectPopup>
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectPopup>
+    </Select>
+  );
+}
+
+/** Sentinel for the "no project" option: a Select value cannot be null. */
+const UNFILED = "__unfiled__";
+
 export function ConnectorAccountRow({
   account,
+  projects,
   state,
   onSync,
+  onSetProject,
   onDisconnect,
 }: {
   account: ConnectorsOverview["accounts"][number];
+  projects: readonly ProjectOption[];
   state: ConnectorActionState;
   onSync: (accountId: string) => void;
+  onSetProject: (accountId: string, projectId: string | null) => void;
   onDisconnect: (accountId: string) => void;
 }) {
   const [isConfirming, setIsConfirming] = useState(false);
@@ -233,6 +293,12 @@ export function ConnectorAccountRow({
           )}
         </span>
         <span className={ACTION_CELL}>
+          <AccountProjectSelect
+            account={account}
+            disabled={isPending}
+            onSetProject={onSetProject}
+            projects={projects}
+          />
           <Button
             aria-label={`Sync ${account.displayName}`}
             disabled={isPending}
@@ -259,6 +325,12 @@ export function ConnectorAccountRow({
       {status.recovery === null ? null : (
         <p className={cn("text-xs text-muted-foreground", ACCOUNT_INDENT)}>{status.recovery}</p>
       )}
+      {account.projectId === null ? (
+        <p className={cn("text-xs text-muted-foreground", ACCOUNT_INDENT)}>
+          Not filed under a project, so this account&apos;s material does not answer any
+          project&apos;s context search. Filing it applies from the next sync.
+        </p>
+      ) : null}
       {showsDetail(account) ? (
         <p className={cn("break-words text-xs text-muted-foreground", ACCOUNT_INDENT)}>
           {account.detail}
@@ -419,15 +491,19 @@ function ConnectorsSkeleton() {
 /** The whole page's content: one list, connectors with their accounts under them. */
 export function ConnectorList({
   overview,
+  projects,
   state,
   onConnect,
   onSync,
+  onSetProject,
   onDisconnect,
 }: {
   overview: ConnectorsOverview;
+  projects: readonly ProjectOption[];
   state: ConnectorActionState;
   onConnect: (kind: ConnectorKind) => void;
   onSync: (accountId: string) => void;
+  onSetProject: (accountId: string, projectId: string | null) => void;
   onDisconnect: (accountId: string) => void;
 }) {
   // A disconnect takes its own row away with it, so its result would vanish
@@ -461,7 +537,9 @@ export function ConnectorList({
                 account={account}
                 key={account.id}
                 onDisconnect={onDisconnect}
+                onSetProject={onSetProject}
                 onSync={onSync}
+                projects={projects}
                 state={state}
               />
             ))}
@@ -487,6 +565,12 @@ export function ConnectorsPanel() {
 
   const load = useCallback(() => port.listConnectors(), [port]);
   const { data: overview, error, reload } = usePortData(load);
+
+  // The picker's options. A failed read leaves it with "No project" only,
+  // which is honest: nothing can be filed while projects are unreadable.
+  const loadProjects = useCallback(() => port.listProjects(), [port]);
+  const { data: projectList } = usePortData(loadProjects);
+  const projects = projectList ?? [];
 
   const [pendingScope, setPendingScope] = useState<string | null>(null);
   const [notice, setNotice] = useState<ActionNotice | null>(null);
@@ -610,6 +694,19 @@ export function ConnectorsPanel() {
     [port, run],
   );
 
+  const handleSetProject = useCallback(
+    (accountId: string, projectId: string | null) => {
+      run(accountScope(accountId), async () => {
+        await port.setConnectorProject(accountId, projectId);
+        await reload();
+        return projectId === null
+          ? "Detached. Its material stops entering any project on the next sync."
+          : "Filed. Its material enters that project from the next sync.";
+      });
+    },
+    [port, reload, run],
+  );
+
   const handleDisconnect = useCallback(
     (accountId: string) => {
       run(accountScope(accountId), async () => {
@@ -645,8 +742,10 @@ export function ConnectorsPanel() {
           <ConnectorList
             onConnect={handleConnect}
             onDisconnect={handleDisconnect}
+            onSetProject={handleSetProject}
             onSync={handleSync}
             overview={overview}
+            projects={projects}
             state={state}
           />
 

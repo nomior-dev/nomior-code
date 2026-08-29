@@ -203,6 +203,12 @@ export interface ConnectorAccountItem {
   readonly kind: ConnectorKind;
   readonly displayName: string;
   readonly status: ConnectorStatus;
+  /**
+   * Project this account's material is filed under, or null when nobody has
+   * said. Context search is per project, so a null account's material is not
+   * findable — the panel has to say so.
+   */
+  readonly projectId: string | null;
   /** Null until a first sync finishes, which the panel renders as "never". */
   readonly lastSyncedAt: string | null;
   /** Only on `error`/`revoked`, already redacted server-side. */

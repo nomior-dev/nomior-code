@@ -243,6 +243,7 @@ describe("Nomior panel subcomponents render fixture data", () => {
    * variant classes, so matching the bare word passes on a live control.
    */
   const DISABLED_ATTRIBUTE = 'disabled=""';
+  const PROJECTS = [{ id: "nomior-code", title: "Nomior Code" }];
 
   it("every connector is one row, with its accounts under it", async () => {
     const port = createFixtureNomiorPort(now);
@@ -251,7 +252,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
       <ConnectorList
         onConnect={noop}
         onDisconnect={noop}
+        onSetProject={noop}
         onSync={noop}
+        projects={PROJECTS}
         overview={overview}
         state={idle}
       />,
@@ -267,6 +270,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(markup).toContain("Never synced");
     // The redacted detail is the only place a failure explains itself.
     expect(markup).toContain("daily quota is spent");
+    // An account filed under nothing syncs into a scope no search reads, and
+    // the row is the only place that can say so.
+    expect(markup).toContain("does not answer any project");
   });
 
   it("an unconnected connector says what connecting it would buy", async () => {
@@ -289,7 +295,14 @@ describe("Nomior panel subcomponents render fixture data", () => {
     const port = createFixtureNomiorPort(now);
     const account = (await port.listConnectors()).accounts[0]!;
     const resting = renderToStaticMarkup(
-      <ConnectorAccountRow account={account} onDisconnect={noop} onSync={noop} state={idle} />,
+      <ConnectorAccountRow
+        account={account}
+        onDisconnect={noop}
+        onSetProject={noop}
+        onSync={noop}
+        projects={PROJECTS}
+        state={idle}
+      />,
     );
     expect(resting).toContain("Disconnect");
     // The confirmation is not pre-armed: the first click only asks.
@@ -299,7 +312,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
       <ConnectorAccountRow
         account={account}
         onDisconnect={noop}
+        onSetProject={noop}
         onSync={noop}
+        projects={PROJECTS}
         state={{ pendingScope: accountScope(account.id), notice: null }}
       />,
     );
@@ -313,7 +328,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
       <ConnectorAccountRow
         account={account}
         onDisconnect={noop}
+        onSetProject={noop}
         onSync={noop}
+        projects={PROJECTS}
         state={{
           pendingScope: null,
           notice: { scope: accountScope(account.id), tone: "error", text: "Google said no." },
@@ -332,7 +349,9 @@ describe("Nomior panel subcomponents render fixture data", () => {
       <ConnectorList
         onConnect={noop}
         onDisconnect={noop}
+        onSetProject={noop}
         onSync={noop}
+        projects={PROJECTS}
         overview={{ ...overview, accounts: remaining }}
         state={{
           pendingScope: null,

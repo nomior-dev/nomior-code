@@ -36,6 +36,7 @@ import {
   NomiorConnectorConnectInput,
   NomiorConnectorConnectResult,
   NomiorConnectorAccountInput,
+  NomiorConnectorSetProjectInput,
   NomiorConnectorSyncResult,
   NomiorRequestError,
   NomiorReviewJobDetail,
@@ -373,6 +374,7 @@ export const WS_METHODS = {
   nomiorGoogleClientIdSet: "nomior.connectors.googleClientIdSet",
   nomiorConnectorConnect: "nomior.connectors.connect",
   nomiorConnectorDisconnect: "nomior.connectors.disconnect",
+  nomiorConnectorSetProject: "nomior.connectors.setProject",
   nomiorConnectorSync: "nomior.connectors.sync",
   nomiorInstancesList: "nomior.instances.list",
   nomiorInstanceSetPinned: "nomior.instances.setPinned",
@@ -1139,6 +1141,11 @@ export const WsNomiorConnectorDisconnectRpc = Rpc.make(WS_METHODS.nomiorConnecto
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
 });
 
+export const WsNomiorConnectorSetProjectRpc = Rpc.make(WS_METHODS.nomiorConnectorSetProject, {
+  payload: NomiorConnectorSetProjectInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
 export const WsNomiorConnectorSyncRpc = Rpc.make(WS_METHODS.nomiorConnectorSync, {
   payload: NomiorConnectorAccountInput,
   success: NomiorConnectorSyncResult,
@@ -1284,6 +1291,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsNomiorGoogleClientIdSetRpc,
   WsNomiorConnectorConnectRpc,
   WsNomiorConnectorDisconnectRpc,
+  WsNomiorConnectorSetProjectRpc,
   WsNomiorConnectorSyncRpc,
   WsNomiorInstancesListRpc,
   WsNomiorInstanceSetPinnedRpc,

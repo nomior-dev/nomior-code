@@ -59,6 +59,10 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:connector-disconnect",
       tag: WS_METHODS.nomiorConnectorDisconnect,
     }),
+    setConnectorProject: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:connector-set-project",
+      tag: WS_METHODS.nomiorConnectorSetProject,
+    }),
     syncConnector: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:connector-sync",
       tag: WS_METHODS.nomiorConnectorSync,

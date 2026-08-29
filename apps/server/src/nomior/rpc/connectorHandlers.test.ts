@@ -12,6 +12,7 @@
  */
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { ProjectId } from "@t3tools/contracts";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -38,6 +39,7 @@ import {
   connectConnector,
   disconnectConnector,
   listConnectors,
+  setConnectorProject,
   setGoogleClientId,
 } from "./connectorHandlers.ts";
 
@@ -115,6 +117,7 @@ const upsertAccount = (input: {
       driverKind: input.driverKind,
       displayName: null,
       config: input.config,
+      projectId: null,
       status: "connected",
       createdAt: "2026-08-29T09:00:00.000Z",
       updatedAt: "2026-08-29T09:00:00.000Z",
@@ -207,6 +210,47 @@ describe("connector handlers over real stores", () => {
         );
         assert.isFalse((yield* syncRuns.lastSyncedAt()).has(accountId), "sync history survived");
         assert.isTrue(Option.isNone(yield* vault.get(accountId)), "stored credentials survived");
+      }),
+    );
+
+    it.effect("filing an account under a project is what puts its material in reach", () =>
+      Effect.gen(function* () {
+        const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
+        const accountId = yield* upsertAccount({
+          accountId: "google_file_me",
+          driverKind: GOOGLE_CALENDAR_KIND,
+          config: { calendarId: "primary" },
+        });
+
+        const unfiled = (yield* listConnectors(yield* listDeps)).accounts.find(
+          (account) => account.id === accountId,
+        );
+        assert.strictEqual(unfiled?.projectId, null, "a fresh account belongs to no project");
+
+        yield* setConnectorProject(accounts, { accountId, projectId: ProjectId.make("proj-1") });
+        const filed = (yield* listConnectors(yield* listDeps)).accounts.find(
+          (account) => account.id === accountId,
+        );
+        assert.strictEqual(filed?.projectId, "proj-1");
+
+        yield* setConnectorProject(accounts, { accountId, projectId: null });
+        const detached = (yield* listConnectors(yield* listDeps)).accounts.find(
+          (account) => account.id === accountId,
+        );
+        assert.strictEqual(detached?.projectId, null);
+      }),
+    );
+
+    it.effect("filing refuses an unknown account without offering a retry", () =>
+      Effect.gen(function* () {
+        const error = yield* Effect.flip(
+          setConnectorProject(yield* ConnectorAccountStore.ConnectorAccountStore, {
+            accountId: "google_nope",
+            projectId: ProjectId.make("proj-1"),
+          }),
+        );
+        assert.strictEqual(error._tag, "NomiorRequestError");
+        assert.isFalse(error.retryable);
       }),
     );
 

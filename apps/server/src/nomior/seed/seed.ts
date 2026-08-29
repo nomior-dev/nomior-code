@@ -20,6 +20,7 @@
  *
  * @module nomior/seed/seed
  */
+import { ProjectId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -39,10 +40,12 @@ import { severityCounts } from "./webFixtures.ts";
 import {
   SEED_EXTERNAL_ID_PREFIX,
   seedCalendarEvents,
+  seedCapsules,
   seedConnectorAccounts,
   seedProviderInstances,
   seedReviewJobs,
   seedSchedulerAssignment,
+  type SeedCapsuleId,
   type SeedReviewJob,
 } from "./scenario.ts";
 import { seedSourceInputs } from "./sourceInputs.ts";
@@ -116,6 +119,12 @@ const resetSeedRows = Effect.fn("nomiorSeed.reset")(function* () {
   `;
 });
 
+/** A capsule with no code has no project, and its accounts stay unassigned. */
+const capsuleProjectId = (capsule: SeedCapsuleId): ProjectId | null => {
+  const projectId = seedCapsules.find((entry) => entry.capsuleId === capsule)?.projectId ?? null;
+  return projectId === null ? null : ProjectId.make(projectId);
+};
+
 const seedConnectors = Effect.fn("nomiorSeed.connectors")(function* () {
   const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
   const cursors = yield* ConnectorCursorStore.ConnectorCursorStore;
@@ -127,6 +136,7 @@ const seedConnectors = Effect.fn("nomiorSeed.connectors")(function* () {
       driverKind: ConnectorDriverKind.make(account.driverKind),
       displayName: account.displayName,
       config: account.config,
+      projectId: capsuleProjectId(account.capsule),
       status: "connected",
       createdAt: account.connectedAt,
       updatedAt: account.updatedAt,

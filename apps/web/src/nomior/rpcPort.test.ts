@@ -32,6 +32,7 @@ const baseRunner: NomiorCommandRunner = {
   listConnectors: unstubbed("listConnectors"),
   setGoogleClientId: unstubbed("setGoogleClientId"),
   connectConnector: unstubbed("connectConnector"),
+  setConnectorProject: unstubbed("setConnectorProject"),
   disconnectConnector: unstubbed("disconnectConnector"),
   syncConnector: unstubbed("syncConnector"),
   listCalendarAccounts: unstubbed("listCalendarAccounts"),

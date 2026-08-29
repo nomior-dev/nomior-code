@@ -376,6 +376,12 @@ export const NomiorConnectorAccount = Schema.Struct({
   /** The account's own name for itself, which for Google is its address. */
   displayName: Schema.String,
   status: NomiorConnectorStatus,
+  /**
+   * Project this account's material is filed under. Null means nobody has
+   * said, and its sources are then unreachable from a project's context
+   * search — the panel says so rather than implying the sync did nothing.
+   */
+  projectId: Schema.NullOr(ProjectId),
   /** Null until the first sync completes; the panel says "never" rather than guessing. */
   lastSyncedAt: Schema.NullOr(IsoDateTime),
   /** Present only on `error`/`revoked`, and already redacted. */
@@ -445,6 +451,13 @@ export const NomiorConnectorAccountInput = Schema.Struct({
   accountId: TrimmedNonEmptyString,
 });
 export type NomiorConnectorAccountInput = typeof NomiorConnectorAccountInput.Type;
+
+export const NomiorConnectorSetProjectInput = Schema.Struct({
+  accountId: TrimmedNonEmptyString,
+  /** Null detaches the account from every project. */
+  projectId: Schema.NullOr(ProjectId),
+});
+export type NomiorConnectorSetProjectInput = typeof NomiorConnectorSetProjectInput.Type;
 
 export const NomiorConnectorSyncResult = Schema.Struct({
   /** Sources written or refreshed by this run, so the panel can say what changed. */

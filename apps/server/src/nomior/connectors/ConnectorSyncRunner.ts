@@ -54,6 +54,20 @@ export interface ConnectorSyncRunResult {
 const accountScope = (accountId: string): NomiorScope => ({ kind: "capsule", value: accountId });
 
 /**
+ * Every scope this account's material enters under. The capsule scope is the
+ * account's own and always present; the project scope is what makes the
+ * material findable, because search is scope-first and every search names a
+ * project. An account nobody assigned to a project ingests into its capsule
+ * alone, where only a future capsule-scoped reader would see it.
+ */
+const scopesFor = (
+  account: ConnectorAccount,
+): readonly [NomiorScope, ...ReadonlyArray<NomiorScope>] =>
+  account.projectId === null
+    ? [accountScope(account.accountId)]
+    : [accountScope(account.accountId), { kind: "project", value: account.projectId }];
+
+/**
  * One compiled decoder per driver. `decodeUnknownEffect` rebuilds the codec on
  * every call, and the driver set is static, so they are built once here.
  */
@@ -104,7 +118,7 @@ export const runConnectorSync = Effect.fn("nomior.connectors.runSync")(function*
     config,
   });
 
-  const scopes = [accountScope(account.accountId)] as const;
+  const scopes = scopesFor(account);
   let cursor = Option.getOrNull(yield* cursors.get(account.accountId, SYNC_STREAM_ID));
   let ingested = 0;
 

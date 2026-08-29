@@ -21,6 +21,7 @@ import {
   type NomiorConnectorsListResult,
   type NomiorConnectorSyncResult,
   type NomiorGoogleClientState,
+  type ProjectId,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
@@ -138,6 +139,7 @@ const toWireAccount = (
   kind,
   displayName: account.displayName ?? account.accountId,
   status: account.status,
+  projectId: account.projectId,
   lastSyncedAt: lastSyncedAt ?? null,
   // No account row carries a failure detail today; the store records a status
   // and nothing else. Null is the honest answer until one does.
@@ -343,6 +345,9 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
         driverKind,
         displayName: yield* googleAddress(accountId, googleKind, clientId),
         config: {},
+        // Assigned from the connectors panel: which project this mailbox or
+        // calendar belongs to is the user's call, not the OAuth flow's.
+        projectId: null,
         status: "connected",
         createdAt: now,
         updatedAt: now,
@@ -405,6 +410,34 @@ export const disconnectConnector = Effect.fn("nomior.rpc.disconnectConnector")(f
   yield* deps.accounts
     .remove(accountId)
     .pipe(Effect.mapError(failed("Could not remove the account.", true)));
+});
+
+// ---------------------------------------------------------------------------
+// Project assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * File an account's material under a project, or detach it.
+ *
+ * Only the scope of *future* syncs changes: sources already ingested keep the
+ * scopes they were written with, and the next sync rewrites them by
+ * `(kind, externalId)`. Saying so is better than pretending the assignment is
+ * retroactive.
+ */
+export const setConnectorProject = Effect.fn("nomior.rpc.setConnectorProject")(function* (
+  accounts: ConnectorAccountStore["Service"],
+  input: { readonly accountId: string; readonly projectId: ProjectId | null },
+) {
+  const accountId = ConnectorAccountId.make(input.accountId);
+  const account = yield* accounts
+    .get(accountId)
+    .pipe(Effect.mapError(failed("Connectors are unavailable.", true)));
+  if (Option.isNone(account)) {
+    return yield* refuse(`No connected account with id ${input.accountId}.`);
+  }
+  yield* accounts
+    .setProject(accountId, input.projectId)
+    .pipe(Effect.mapError(failed("Could not file the account under that project.", true)));
 });
 
 // ---------------------------------------------------------------------------

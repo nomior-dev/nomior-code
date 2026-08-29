@@ -24,6 +24,8 @@ export interface ConnectorAccountScenario {
   readonly kind: ConnectorKind;
   readonly displayName: string;
   readonly status: ConnectorStatus;
+  /** Null is an account nobody has filed under a project yet. */
+  readonly projectId: string | null;
   /** Hours before "now". Null is an account that has never finished a sync. */
   readonly lastSyncedAgoHours: number | null;
   readonly detail: string | null;
@@ -35,6 +37,7 @@ export const connectorAccountScenarios: readonly ConnectorAccountScenario[] = [
     kind: "googleCalendar",
     displayName: "work@nomior.example",
     status: "connected",
+    projectId: "nomior-code",
     lastSyncedAgoHours: 2,
     detail: null,
   },
@@ -44,6 +47,9 @@ export const connectorAccountScenarios: readonly ConnectorAccountScenario[] = [
     kind: "googleCalendar",
     displayName: "personal@gmail.example",
     status: "error",
+    // Unassigned on purpose: the row has to say why its material is missing
+    // from every project's search.
+    projectId: null,
     lastSyncedAgoHours: 27,
     detail: "Google refused the events list with 429: this client's daily quota is spent.",
   },
@@ -53,6 +59,7 @@ export const connectorAccountScenarios: readonly ConnectorAccountScenario[] = [
     kind: "gmail",
     displayName: "work@nomior.example",
     status: "revoked",
+    projectId: "nomior-code",
     lastSyncedAgoHours: null,
     detail: "The token was revoked from the Google account's security settings.",
   },

@@ -9,7 +9,7 @@
  *
  * @module nomior/connectors/ConnectorAccountStore
  */
-import { IsoDateTime } from "@t3tools/contracts";
+import { IsoDateTime, ProjectId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -36,6 +36,12 @@ export const ConnectorAccount = Schema.Struct({
   displayName: Schema.NullOr(Schema.String),
   /** Opaque config envelope; the owning driver's `configSchema` decodes it. */
   config: Schema.Unknown,
+  /**
+   * Project this account's material belongs to, or null when nobody has said.
+   * A null account's sources are reachable only by its capsule scope, which no
+   * search uses — see `010_NomiorConnectorProject`.
+   */
+  projectId: Schema.NullOr(ProjectId),
   status: ConnectorAccountStatus,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -67,6 +73,11 @@ export class ConnectorAccountStore extends Context.Service<
       accountId: ConnectorAccountId,
       status: ConnectorAccountStatus,
     ) => Effect.Effect<void, ConnectorAccountStoreError>;
+    /** Null detaches the account, which stops scoping its sources anywhere. */
+    readonly setProject: (
+      accountId: ConnectorAccountId,
+      projectId: ProjectId | null,
+    ) => Effect.Effect<void, ConnectorAccountStoreError>;
     readonly remove: (
       accountId: ConnectorAccountId,
     ) => Effect.Effect<void, ConnectorAccountStoreError>;
@@ -85,6 +96,7 @@ const accountColumns = `
   driver_kind AS "driverKind",
   display_name AS "displayName",
   config_json AS "config",
+  project_id AS "projectId",
   status,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
@@ -102,6 +114,7 @@ export const make = Effect.gen(function* () {
           driver_kind,
           display_name,
           config_json,
+          project_id,
           status,
           created_at,
           updated_at
@@ -111,6 +124,7 @@ export const make = Effect.gen(function* () {
           ${row.driverKind},
           ${row.displayName},
           ${row.config},
+          ${row.projectId},
           ${row.status},
           ${row.createdAt},
           ${row.updatedAt}
@@ -120,6 +134,7 @@ export const make = Effect.gen(function* () {
           driver_kind = excluded.driver_kind,
           display_name = excluded.display_name,
           config_json = excluded.config_json,
+          project_id = excluded.project_id,
           status = excluded.status,
           updated_at = excluded.updated_at
       `,
@@ -206,6 +221,20 @@ export const make = Effect.gen(function* () {
         Effect.asVoid,
         Effect.mapError(toPersistenceSqlError("connectorAccounts.setStatus")),
         Effect.withSpan("ConnectorAccountStore.setStatus"),
+      ),
+    setProject: (accountId, projectId) =>
+      nowIso.pipe(
+        Effect.flatMap(
+          (updatedAt) =>
+            sql`
+              UPDATE nomior_connector_accounts
+              SET project_id = ${projectId}, updated_at = ${updatedAt}
+              WHERE account_id = ${accountId}
+            `,
+        ),
+        Effect.asVoid,
+        Effect.mapError(toPersistenceSqlError("connectorAccounts.setProject")),
+        Effect.withSpan("ConnectorAccountStore.setProject"),
       ),
     remove: (accountId) =>
       sql`
