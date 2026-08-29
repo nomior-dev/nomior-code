@@ -123,6 +123,50 @@ export function orderAccounts(
   });
 }
 
+/** The accounts one connector owns, in a stable order. */
+export function accountsOfKind(
+  accounts: readonly ConnectorAccountItem[],
+  kind: ConnectorKind,
+): readonly ConnectorAccountItem[] {
+  return accounts
+    .filter((account) => account.kind === kind)
+    .toSorted((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
+/**
+ * What the card's own button says.
+ *
+ * Connecting a second Google account is the same press as the first, so the
+ * label is the only thing that changes — and it changes to the thing the press
+ * actually does, which is add, not reconnect.
+ */
+export function connectActionLabel(kind: ConnectorKind, connected: number): string {
+  if (!isGoogleConnector(kind)) return "Connect";
+  return connected === 0 ? "Connect" : "Add account";
+}
+
+/** Where a connector runs, in the width of a column. */
+export function connectorTypeLabel(kind: ConnectorKind): string {
+  return isGoogleConnector(kind) ? "Google" : "This machine";
+}
+
+export type ConnectorRowStatus = "connected" | "attention" | "none";
+
+/**
+ * One glyph per connector, from the accounts under it: a tick once something
+ * is signed in, a warning the moment any of them stops working, and a dash
+ * when there is nothing there. The row says which of the three it is before
+ * anyone reads a word of it.
+ */
+export function connectorRowStatus(
+  accounts: readonly ConnectorAccountItem[],
+  kind: ConnectorKind,
+): ConnectorRowStatus {
+  const own = accounts.filter((account) => account.kind === kind);
+  if (own.length === 0) return "none";
+  return own.some((account) => account.status !== "connected") ? "attention" : "connected";
+}
+
 /** Only the last four characters ever reach the client, and only these render. */
 export function clientIdHintLabel(google: GoogleClientState): string {
   if (!google.configured) return "No client id yet";
@@ -134,25 +178,14 @@ export function clientIdHintLabel(google: GoogleClientState): string {
 }
 
 /**
- * Whether the setup fields open on their own. Only a build with no client id
- * of its own has a setup step left for the user, and only then is Advanced
- * something they have to find rather than something they may ignore.
- */
-export function opensAdvancedByDefault(google: GoogleClientState): boolean {
-  return google.source === "none";
-}
-
-/**
- * Whether the setup fields are open, given whatever the user has said about it.
+ * Whether this environment has a setup step left before anything can connect.
  *
- * `null` is "has not said", and follows the data — including the data that
- * arrives after the first paint. The page renders sample state while it learns
- * which environment it is talking to, and sample state has a client id, so a
- * section that decided once at mount would stay shut in the one case it exists
- * to open for.
+ * The client id is the page's only piece of configuration, and a build that
+ * carries one has none: the field is not tucked away for that case, it is not
+ * rendered at all.
  */
-export function advancedSectionOpen(choice: boolean | null, google: GoogleClientState): boolean {
-  return choice ?? opensAdvancedByDefault(google);
+export function needsGoogleSetup(google: GoogleClientState): boolean {
+  return google.source === "none";
 }
 
 export type ClientIdSaveIntent = "save" | "clear" | "unchanged";
@@ -238,7 +271,7 @@ export function connectBlockedReason(input: ConnectAvailabilityInput): string | 
       return "Google sign-in finishes on a loopback address on this environment's machine, which this browser cannot reach. Open Nomior Code on that machine to connect.";
     }
     if (!google.configured) {
-      return "This build ships no Google client id. Add one under Advanced first.";
+      return "Add this environment\u2019s Google client id above first.";
     }
     return null;
   }
@@ -256,6 +289,25 @@ export function connectBlockedReason(input: ConnectAvailabilityInput): string | 
         ? "The Anarlog store on this machine is already connected."
         : null;
   }
+}
+
+/**
+ * The one line under a connector's name, or null when the row says enough.
+ *
+ * A row earns at most one sentence. Once a connector has accounts the rows
+ * beneath it are the sentence, so it gets none. An unconnected Google row
+ * carries what connecting would buy you — unless the thing stopping it is one
+ * of the two blockers the page already states once above the list, and then
+ * repeating it here would be the same sentence three times. Anarlog is a file
+ * rather than an account, so its line is what we found on this machine.
+ */
+export function connectorRowLine(input: ConnectAvailabilityInput): string | null {
+  if (accountsOfKind(input.accounts, input.kind).length > 0) return null;
+  if (isGoogleConnector(input.kind)) {
+    if (!input.canStartLocalOAuth || !input.google.configured) return null;
+    return connectorKindDescription(input.kind);
+  }
+  return connectBlockedReason(input) ?? anarlogPresentation(input.anarlog).detail;
 }
 
 /**

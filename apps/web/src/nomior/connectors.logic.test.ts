@@ -20,8 +20,7 @@ import {
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
-  advancedSectionOpen,
-  opensAdvancedByDefault,
+  needsGoogleSetup,
   orderAccounts,
   showsDetail,
   statusPresentation,
@@ -128,19 +127,10 @@ describe("google client id", () => {
     expect(clientIdSaveIntent("", GOOGLE_CLIENT_CONFIGURED)).toBe("unchanged");
   });
 
-  it("opens the setup fields only for a build that has no id of its own", () => {
-    expect(opensAdvancedByDefault(GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
-    expect(opensAdvancedByDefault(GOOGLE_CLIENT_CONFIGURED)).toBe(false);
-    expect(opensAdvancedByDefault(GOOGLE_CLIENT_OPERATOR)).toBe(false);
-  });
-
-  it("follows the data until the user says otherwise", () => {
-    // Sample data has a client id and paints first, so a section that decided
-    // at mount would stay shut once the environment answers with none.
-    expect(advancedSectionOpen(null, GOOGLE_CLIENT_CONFIGURED)).toBe(false);
-    expect(advancedSectionOpen(null, GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
-    expect(advancedSectionOpen(false, GOOGLE_CLIENT_UNCONFIGURED)).toBe(false);
-    expect(advancedSectionOpen(true, GOOGLE_CLIENT_CONFIGURED)).toBe(true);
+  it("asks for a client id only from a build that has none of its own", () => {
+    expect(needsGoogleSetup(GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
+    expect(needsGoogleSetup(GOOGLE_CLIENT_CONFIGURED)).toBe(false);
+    expect(needsGoogleSetup(GOOGLE_CLIENT_OPERATOR)).toBe(false);
   });
 });
 
@@ -195,8 +185,8 @@ describe("connect availability", () => {
       google: GOOGLE_CLIENT_UNCONFIGURED,
     });
     expect(reason).toContain("client id");
-    // And says where the field is, since it is no longer on screen.
-    expect(reason).toContain("Advanced");
+    // And says where the field is: above the list, not behind a drawer.
+    expect(reason).toContain("above");
   });
 
   it("blocks a remote client on the loopback redirect, ahead of any fixable reason", () => {

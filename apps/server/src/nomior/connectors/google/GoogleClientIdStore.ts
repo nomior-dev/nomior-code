@@ -42,11 +42,21 @@ export class GoogleClientIdStoreError extends Schema.TaggedErrorClass<GoogleClie
 }
 
 /**
- * The tail the panel renders. Shorter ids are shown whole only when they are
- * already shorter than the hint, which no real Google client id is.
+ * The tail the panel renders.
+ *
+ * Taken from before the suffix every Google client id shares: the last four
+ * characters of the whole value are ".com" on every id ever issued, which
+ * tells two projects apart exactly never. Shorter ids are shown whole only
+ * when they are already shorter than the hint, which no real one is.
  */
-export const googleClientIdHint = (clientId: string): string =>
-  clientId.slice(Math.max(0, clientId.length - HINT_LENGTH));
+const GOOGLE_CLIENT_ID_SUFFIX = ".apps.googleusercontent.com";
+
+export const googleClientIdHint = (clientId: string): string => {
+  const distinctive = clientId.endsWith(GOOGLE_CLIENT_ID_SUFFIX)
+    ? clientId.slice(0, -GOOGLE_CLIENT_ID_SUFFIX.length)
+    : clientId;
+  return distinctive.slice(Math.max(0, distinctive.length - HINT_LENGTH));
+};
 
 export class GoogleClientIdStore extends Context.Service<
   GoogleClientIdStore,

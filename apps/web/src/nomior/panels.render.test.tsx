@@ -12,12 +12,11 @@ import { addDays, startOfWeek, toCalendarEvents } from "./calendar.logic";
 import { AccountLegend, CalendarPanel } from "./CalendarPanel";
 import {
   accountScope,
-  AdvancedConnectorSection,
-  AnarlogConnectorSection,
-  ConnectorAccountList,
   ConnectorAccountRow,
+  ConnectorList,
+  ConnectorRow,
   ConnectorsPanel,
-  GoogleConnectorSection,
+  GoogleProjectFooter,
   RemoteOAuthNotice,
   type ConnectorActionState,
 } from "./ConnectorsPanel";
@@ -37,6 +36,7 @@ import {
   TranscriptReader,
 } from "./MeetingsPanel";
 import { PortErrorState } from "./PortErrorState";
+import type { ConnectorsOverview } from "./types";
 import { ReviewBoardPanel, ReviewJobCard } from "./ReviewBoardPanel";
 import { ReviewJobReader } from "./ReviewJobPanel";
 
@@ -77,7 +77,6 @@ describe("Nomior panels render standalone", () => {
   it("connectors labels its sample data before anything claims to be connected", () => {
     const markup = renderToStaticMarkup(<ConnectorsPanel />);
     expect(markup).toContain("Sample data");
-    expect(markup).toContain("Where Nomior");
   });
 });
 
@@ -269,37 +268,45 @@ describe("Nomior panel subcomponents render fixture data", () => {
    */
   const DISABLED_ATTRIBUTE = 'disabled=""';
 
-  it("account rows keep never-synced, retryable and revoked apart", async () => {
+  it("every connector is one row, with its accounts under it", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
     const markup = renderToStaticMarkup(
-      <ConnectorAccountList onDisconnect={noop} onSync={noop} overview={overview} state={idle} />,
+      <ConnectorList
+        onConnect={noop}
+        onDisconnect={noop}
+        onSync={noop}
+        overview={overview}
+        state={idle}
+      />,
     );
-    expect(markup).toContain("work@nomior.example");
+    for (const label of ["Connector", "Type", "Status"]) expect(markup).toContain(label);
     expect(markup).toContain("Google Calendar");
+    expect(markup).toContain("work@nomior.example");
+    // A connector with accounts adds, it does not connect again.
+    expect(markup).toContain("Add account");
     // Three statuses, three sentences: one retryable, one terminal, one blank.
-    expect(markup).toContain("Sync failed");
-    expect(markup).toContain("Access revoked");
-    expect(markup).toContain("Never synced");
     expect(markup).toContain("Sync again");
     expect(markup).toContain("Retrying will not help");
+    expect(markup).toContain("Never synced");
     // The redacted detail is the only place a failure explains itself.
     expect(markup).toContain("daily quota is spent");
   });
 
-  it("no accounts says what connecting one would get you", async () => {
+  it("an unconnected connector says what connecting it would buy", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
     const markup = renderToStaticMarkup(
-      <ConnectorAccountList
-        onDisconnect={noop}
-        onSync={noop}
+      <ConnectorRow
+        kind="gmail"
+        onConnect={noop}
         overview={{ ...overview, accounts: [] }}
         state={idle}
       />,
     );
-    expect(markup).toContain("No accounts connected");
-    expect(markup).toContain("sample data");
+    expect(markup).toContain("Gmail");
+    expect(markup).toContain("cited as context");
+    expect(markup).toContain(">Connect<");
   });
 
   it("disconnect asks before it fires, and a pending action locks its own row", async () => {
@@ -346,7 +353,8 @@ describe("Nomior panel subcomponents render fixture data", () => {
     const overview = await port.listConnectors();
     const [removed, ...remaining] = overview.accounts;
     const markup = renderToStaticMarkup(
-      <ConnectorAccountList
+      <ConnectorList
+        onConnect={noop}
         onDisconnect={noop}
         onSync={noop}
         overview={{ ...overview, accounts: remaining }}
@@ -359,53 +367,39 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(markup).toContain("Disconnected.");
   });
 
-  it("a build that carries its own client id asks for nothing: one live button", async () => {
+  it("a build that carries its own client id shows no field at all", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
-    const google = renderToStaticMarkup(
-      <GoogleConnectorSection onConnect={noop} overview={overview} state={idle} />,
+    const row = renderToStaticMarkup(
+      <ConnectorRow kind="googleCalendar" onConnect={noop} overview={overview} state={idle} />,
     );
-    expect(google).toContain("Connect Google account");
-    expect(google).not.toContain(DISABLED_ATTRIBUTE);
-    // Setup moved to Advanced, and Advanced is closed: no field on screen.
-    expect(google).not.toContain("client id");
-    const advanced = renderToStaticMarkup(
-      <AdvancedConnectorSection
-        onConnect={noop}
-        onSaveClientId={noop}
-        overview={overview}
-        state={idle}
-      />,
+    expect(row).not.toContain(DISABLED_ATTRIBUTE);
+    expect(row).not.toContain("client id");
+    // The whole subject is one closed line at the foot of the page.
+    const footer = renderToStaticMarkup(
+      <GoogleProjectFooter onSave={noop} overview={overview} state={idle} />,
     );
-    expect(advanced).toContain("Advanced");
-    expect(advanced).not.toContain("OAuth client id");
+    expect(footer).toContain("Use your own Google project");
+    expect(footer).not.toContain("<input");
   });
 
-  it("with no client id anywhere, the button says where the setup step is", async () => {
+  it("with no client id the row goes quiet and the footer says why", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
     const unconfigured = { ...overview, google: GOOGLE_CLIENT_UNCONFIGURED };
-    const google = renderToStaticMarkup(
-      <GoogleConnectorSection onConnect={noop} overview={unconfigured} state={idle} />,
+    const footer = renderToStaticMarkup(
+      <GoogleProjectFooter onSave={noop} overview={unconfigured} state={idle} />,
     );
-    expect(google).toContain("Advanced");
-    // Connect is off, but it says why rather than sitting there dead.
-    expect(google).toContain(DISABLED_ATTRIBUTE);
+    expect(footer).toContain("ships no Google client id");
+    expect(footer).toContain("Add one");
 
-    // And Advanced opens on its own, because this is the one build where the
-    // page can do nothing at all until someone fills that field in.
-    const advanced = renderToStaticMarkup(
-      <AdvancedConnectorSection
-        onConnect={noop}
-        onSaveClientId={noop}
-        overview={unconfigured}
-        state={idle}
-      />,
+    // The row is off, and points at that line rather than repeating it.
+    const row = renderToStaticMarkup(
+      <ConnectorRow kind="googleCalendar" onConnect={noop} overview={unconfigured} state={idle} />,
     );
-    expect(advanced).toContain("OAuth client id");
-    expect(advanced).toContain("No client id yet");
-    // Gmail lives here rather than in the default path: its scope is restricted.
-    expect(advanced).toContain("Gmail");
+    expect(row).toContain(DISABLED_ATTRIBUTE);
+    expect(row).toContain('aria-describedby="nomior-google-client-id"');
+    expect(row).not.toContain("client id.");
   });
 
   it("a remote client is told the redirect cannot land here, ahead of any fixable reason", async () => {
@@ -413,44 +407,33 @@ describe("Nomior panel subcomponents render fixture data", () => {
     const overview = await port.listConnectors();
     const remote = { ...overview, canStartLocalOAuth: false, google: GOOGLE_CLIENT_UNCONFIGURED };
     expect(renderToStaticMarkup(<RemoteOAuthNotice />)).toContain("loopback address");
-    const markup = renderToStaticMarkup(
-      <GoogleConnectorSection onConnect={noop} overview={remote} state={idle} />,
+    const row = renderToStaticMarkup(
+      <ConnectorRow kind="googleCalendar" onConnect={noop} overview={remote} state={idle} />,
     );
-    expect(markup).toContain("loopback address");
-    expect(markup).toContain(DISABLED_ATTRIBUTE);
-    // The client id is still missing, but saying so here would imply that
+    expect(row).toContain(DISABLED_ATTRIBUTE);
+    // The client id is missing too, but pointing at it would imply that
     // pasting one is enough to finish a sign-in this browser cannot finish.
-    expect(markup).not.toContain("Advanced");
+    expect(row).toContain('aria-describedby="nomior-remote-oauth"');
   });
 
   it("anarlog reads as found, absent or refused, never as one merged state", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
     const withoutAccounts = { ...overview, accounts: [] };
-    const found = renderToStaticMarkup(
-      <AnarlogConnectorSection onConnect={noop} overview={withoutAccounts} state={idle} />,
-    );
-    const missing = renderToStaticMarkup(
-      <AnarlogConnectorSection
-        onConnect={noop}
-        overview={{ ...withoutAccounts, anarlog: ANARLOG_NOT_FOUND }}
-        state={idle}
-      />,
-    );
-    const refused = renderToStaticMarkup(
-      <AnarlogConnectorSection
-        onConnect={noop}
-        overview={{ ...withoutAccounts, anarlog: ANARLOG_UNSUPPORTED_SCHEMA }}
-        state={idle}
-      />,
-    );
-    expect(found).toContain("Store found");
+    const anarlogRow = (state: ConnectorsOverview) =>
+      renderToStaticMarkup(
+        <ConnectorRow kind="anarlog" onConnect={noop} overview={state} state={idle} />,
+      );
+    const found = anarlogRow(withoutAccounts);
+    const missing = anarlogRow({ ...withoutAccounts, anarlog: ANARLOG_NOT_FOUND });
+    const refused = anarlogRow({ ...withoutAccounts, anarlog: ANARLOG_UNSUPPORTED_SCHEMA });
     expect(found).toContain("anarlog.sqlite");
-    expect(missing).toContain("No store");
-    expect(missing).toContain("no store there");
+    expect(found).not.toContain(DISABLED_ATTRIBUTE);
+    expect(missing).toContain("no Anarlog store");
+    expect(missing).toContain(DISABLED_ATTRIBUTE);
     // Found and refused names the version, so nobody reads it as absent.
-    expect(refused).toContain("Schema too new");
-    expect(refused).toContain("v9");
+    expect(refused).toContain("newer than the reader supports");
+    expect(refused).toContain(DISABLED_ATTRIBUTE);
   });
 
   it("port error state names the failure and offers a retry", () => {

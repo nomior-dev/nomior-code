@@ -1,38 +1,38 @@
 import {
   AlertTriangleIcon,
-  ChevronRightIcon,
-  LinkIcon,
+  CalendarIcon,
+  CheckIcon,
+  MailIcon,
+  MicIcon,
   MonitorOffIcon,
   RefreshCwIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/utils";
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Card, CardPanel } from "../components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
 import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 import { readLocalApi } from "../localApi";
 import {
+  accountsOfKind,
   accountsSignature,
-  advancedSectionOpen,
   anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
   clientIdSaveIntent,
+  connectActionLabel,
   connectBlockedReason,
-  connectorKindDescription,
   connectorKindLabel,
+  connectorRowLine,
+  connectorRowStatus,
+  connectorTypeLabel,
+  CONNECTOR_KIND_ORDER,
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
-  orderAccounts,
+  needsGoogleSetup,
   showsDetail,
   statusPresentation,
 } from "./connectors.logic";
@@ -42,22 +42,30 @@ import { PortErrorState } from "./PortErrorState";
 import type { ConnectorKind, ConnectorsOverview } from "./types";
 import { usePortData } from "./usePortData";
 
-/** A value the connector never supplied reads as muted italics, everywhere. */
-const UNKNOWN_CLASS = "text-muted-foreground/80 italic";
-
 /**
- * The kind the one button connects.
- *
- * Calendar carries the surface people come here for, and its scope is the one
- * Google treats as merely sensitive. Gmail is a restricted scope — a separate
- * consent, and for anyone shipping their own client id a separate security
- * review — so it stays under Advanced rather than in the default path.
+ * One row shape for the whole page: what it is, where it runs, whether it is
+ * working, what you can do about it. Accounts use the same four columns as the
+ * connectors they sit under, so the page reads as one list rather than as a
+ * stack of panels.
  */
-const PRIMARY_GOOGLE_KIND: ConnectorKind = "googleCalendar";
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_9rem] items-center gap-x-4 sm:grid-cols-[minmax(0,1fr)_7rem_2rem_9rem]";
+
+/** The action column: same width on every row, so the columns left of it line up. */
+const ACTION_CELL = "flex items-center justify-end gap-1";
+
+/** Columns that only exist on a wide enough page; the name column always does. */
+const SECONDARY_CELL = "hidden truncate text-xs text-muted-foreground sm:block";
+const STATUS_CELL = "hidden justify-self-center sm:block";
+
+/** Accounts sit under their connector's name, not under a column of their own. */
+const ACCOUNT_INDENT = "ps-6.5";
 
 /** Scope keys: one action can be in flight, and its result renders where it happened. */
 export const CLIENT_ID_SCOPE = "google-client-id";
 const ACCOUNT_SCOPE_PREFIX = "account:";
+const CLIENT_ID_NOTE_ID = "nomior-google-client-id";
+const REMOTE_HINT_ID = "nomior-remote-oauth";
 export const connectScope = (kind: ConnectorKind) => `connect:${kind}`;
 export const accountScope = (accountId: string) => `${ACCOUNT_SCOPE_PREFIX}${accountId}`;
 
@@ -91,12 +99,37 @@ function noticeFor(state: ConnectorActionState, scope: string): ActionNotice | n
   return state.notice !== null && state.notice.scope === scope ? state.notice : null;
 }
 
+const KIND_ICON = {
+  googleCalendar: CalendarIcon,
+  gmail: MailIcon,
+  anarlog: MicIcon,
+} as const satisfies Record<ConnectorKind, typeof CalendarIcon>;
+
+/** Tick, warning or dash — the column you scan instead of reading the rows. */
+function StatusGlyph({ kind, overview }: { kind: ConnectorKind; overview: ConnectorsOverview }) {
+  const status = connectorRowStatus(overview.accounts, kind);
+  if (status === "connected") {
+    return <CheckIcon aria-label="Connected" className="size-4 text-success-foreground" />;
+  }
+  if (status === "attention") {
+    return <AlertTriangleIcon aria-label="Needs attention" className="size-4 text-warning" />;
+  }
+  return (
+    <span aria-label="Not connected" className="text-muted-foreground/60">
+      —
+    </span>
+  );
+}
+
 /**
- * One Connect button plus, when it cannot run, the sentence saying why. The
- * reason renders as text rather than a tooltip: a disabled control swallows
- * pointer events, so a tooltip on it is a reason nobody can read.
+ * One connector: the thing itself, never its setup.
+ *
+ * Connecting a second Google account is the same press as the first — Google's
+ * own chooser decides which — so the row keeps one button and only its label
+ * moves. The accounts it owns render underneath it, because an account is only
+ * meaningful as "this connector, signed in as this address".
  */
-function ConnectRow({
+export function ConnectorRow({
   kind,
   overview,
   state,
@@ -107,39 +140,63 @@ function ConnectRow({
   state: ConnectorActionState;
   onConnect: (kind: ConnectorKind) => void;
 }) {
-  const blocked = connectBlockedReason({
+  const accounts = accountsOfKind(overview.accounts, kind);
+  const availability = {
     kind,
     google: overview.google,
     anarlog: overview.anarlog,
     accounts: overview.accounts,
     canStartLocalOAuth: overview.canStartLocalOAuth,
-  });
+  };
+  const blocked = connectBlockedReason(availability);
+  const line = connectorRowLine(availability);
+  // The two blockers the page states once above the list. A disabled button
+  // still has to point at its reason; it points at the one on screen.
+  const pageHintId = !isGoogleConnector(kind)
+    ? null
+    : !overview.canStartLocalOAuth
+      ? REMOTE_HINT_ID
+      : needsGoogleSetup(overview.google)
+        ? CLIENT_ID_NOTE_ID
+        : null;
   const scope = connectScope(kind);
   const isPending = state.pendingScope === scope;
   const notice = noticeFor(state, scope);
+  const Icon = KIND_ICON[kind];
   const reasonId = `nomior-connect-reason-${kind}`;
+  // Anarlog is a file, not an account: once it is connected there is nothing
+  // to add, and the row below it carries the Sync and Disconnect it needs.
+  const hidesAction = !isGoogleConnector(kind) && accounts.length > 0;
 
   return (
-    <div className="flex flex-col gap-1.5 py-3">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{connectorKindLabel(kind)}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{connectorKindDescription(kind)}</p>
+    <div className="flex flex-col gap-1.5 py-2.5">
+      <div className={ROW_GRID}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Icon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate text-sm">{connectorKindLabel(kind)}</span>
         </div>
-        <Button
-          aria-describedby={blocked === null ? undefined : reasonId}
-          disabled={blocked !== null || isPending}
-          onClick={() => onConnect(kind)}
-          size="xs"
-          variant="outline"
-        >
-          {isPending ? <Spinner className="size-3.5" /> : <LinkIcon className="size-3.5" />}
-          {isPending ? "Connecting" : "Connect"}
-        </Button>
+        <span className={SECONDARY_CELL}>{connectorTypeLabel(kind)}</span>
+        <span className={STATUS_CELL}>
+          <StatusGlyph kind={kind} overview={overview} />
+        </span>
+        <span className={ACTION_CELL}>
+          {hidesAction ? null : (
+            <Button
+              aria-describedby={pageHintId ?? (line === null ? undefined : reasonId)}
+              disabled={blocked !== null || isPending}
+              onClick={() => onConnect(kind)}
+              size="xs"
+              variant="outline"
+            >
+              {isPending ? <Spinner className="size-3.5" /> : null}
+              {isPending ? "Waiting for Google" : connectActionLabel(kind, accounts.length)}
+            </Button>
+          )}
+        </span>
       </div>
-      {blocked === null ? null : (
-        <p className="text-xs text-muted-foreground" id={reasonId}>
-          {blocked}
+      {line === null ? null : (
+        <p className="text-xs text-muted-foreground ps-6.5" id={reasonId}>
+          {line}
         </p>
       )}
       {notice === null ? null : <NoticeLine notice={notice} />}
@@ -148,199 +205,9 @@ function ConnectRow({
 }
 
 /**
- * The whole Google setup, when everything is as it should be: one button.
- *
- * A release build carries its own OAuth client id, so signing in a second or
- * third account is the same single press as the first — Google's own account
- * chooser handles which one. Everything that used to sit here (the client id,
- * Gmail) moved to Advanced, where a fork that has to supply its own project can
- * still find it.
- */
-export function GoogleConnectorSection({
-  overview,
-  state,
-  onConnect,
-}: {
-  overview: ConnectorsOverview;
-  state: ConnectorActionState;
-  onConnect: (kind: ConnectorKind) => void;
-}) {
-  const blocked = connectBlockedReason({
-    kind: PRIMARY_GOOGLE_KIND,
-    google: overview.google,
-    anarlog: overview.anarlog,
-    accounts: overview.accounts,
-    canStartLocalOAuth: overview.canStartLocalOAuth,
-  });
-  const scope = connectScope(PRIMARY_GOOGLE_KIND);
-  const isPending = state.pendingScope === scope;
-  const notice = noticeFor(state, scope);
-  const reasonId = "nomior-connect-reason-google";
-
-  return (
-    <section aria-label="Google" className="flex flex-col gap-2">
-      <Button
-        aria-describedby={blocked === null ? undefined : reasonId}
-        className="self-start"
-        disabled={blocked !== null || isPending}
-        onClick={() => onConnect(PRIMARY_GOOGLE_KIND)}
-        size="sm"
-      >
-        {isPending ? <Spinner className="size-3.5" /> : <LinkIcon className="size-3.5" />}
-        {isPending ? "Waiting for Google" : "Connect Google account"}
-      </Button>
-      {blocked === null ? null : (
-        <p className="text-xs text-muted-foreground" id={reasonId}>
-          {blocked}
-        </p>
-      )}
-      {notice === null ? null : <NoticeLine notice={notice} />}
-    </section>
-  );
-}
-
-/**
- * The setup nobody should need: the OAuth client id, and Gmail.
- *
- * Collapsed unless this build has no client id of its own, which is the one
- * case where the page cannot do anything until someone fills it in.
- */
-export function AdvancedConnectorSection({
-  overview,
-  state,
-  onSaveClientId,
-  onConnect,
-}: {
-  overview: ConnectorsOverview;
-  state: ConnectorActionState;
-  onSaveClientId: (value: string) => void;
-  onConnect: (kind: ConnectorKind) => void;
-}) {
-  // null until the user opens or closes it themselves; see advancedSectionOpen.
-  const [choice, setChoice] = useState<boolean | null>(null);
-  const isOpen = advancedSectionOpen(choice, overview.google);
-  const [draft, setDraft] = useState("");
-  const intent = clientIdSaveIntent(draft, overview.google);
-  const isSaving = state.pendingScope === CLIENT_ID_SCOPE;
-  const notice = noticeFor(state, CLIENT_ID_SCOPE);
-
-  return (
-    <Collapsible onOpenChange={setChoice} open={isOpen}>
-      <CollapsibleTrigger
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        render={<button type="button" />}
-      >
-        <ChevronRightIcon className={cn("size-3.5 transition-transform", isOpen && "rotate-90")} />
-        Advanced
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <Card className="mt-3">
-          <CardPanel className="flex flex-col gap-3 p-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="nomior-google-client-id">OAuth client id</Label>
-                <Badge size="sm" variant={overview.google.configured ? "success" : "secondary"}>
-                  {clientIdHintLabel(overview.google)}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Point this environment at your own Google Cloud project instead of the built-in
-                client: create an OAuth 2.0 Client ID of type “Desktop app” and paste it here. It is
-                stored on this environment, never in the browser.
-              </p>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  autoComplete="off"
-                  className="sm:flex-1"
-                  disabled={isSaving}
-                  id="nomior-google-client-id"
-                  onChange={(event) => setDraft(event.currentTarget.value)}
-                  placeholder={
-                    overview.google.configured
-                      ? "Paste a client id to replace the one in use"
-                      : "000000000000-xxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"
-                  }
-                  spellCheck={false}
-                  value={draft}
-                />
-                <Button
-                  className="sm:self-start"
-                  disabled={intent === "unchanged" || isSaving}
-                  onClick={() => {
-                    onSaveClientId(draft);
-                    setDraft("");
-                  }}
-                  size="sm"
-                  variant={intent === "clear" ? "destructive-outline" : "outline"}
-                >
-                  {isSaving ? <Spinner className="size-3.5" /> : null}
-                  {intent === "clear" ? "Clear client id" : "Save"}
-                </Button>
-              </div>
-              {intent === "clear" ? (
-                <p className="text-xs text-destructive-foreground">
-                  The box is empty, so saving clears this environment's client id and Google falls
-                  back to the one the build ships with, if it has one. Accounts already connected
-                  keep syncing on the tokens they hold.
-                </p>
-              ) : null}
-              {notice === null ? null : <NoticeLine notice={notice} />}
-            </div>
-
-            <div className="flex flex-col border-t border-border">
-              <ConnectRow kind="gmail" onConnect={onConnect} overview={overview} state={state} />
-            </div>
-          </CardPanel>
-        </Card>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-/**
- * The Anarlog store, which is a file on this environment's machine rather than
- * an account. Its three detections are three different sentences: absent,
- * readable, or found and deliberately left alone.
- */
-export function AnarlogConnectorSection({
-  overview,
-  state,
-  onConnect,
-}: {
-  overview: ConnectorsOverview;
-  state: ConnectorActionState;
-  onConnect: (kind: ConnectorKind) => void;
-}) {
-  const presentation = anarlogPresentation(overview.anarlog);
-
-  return (
-    <section aria-label="Anarlog" className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium">Anarlog</h2>
-
-      <Card>
-        <CardPanel className="flex flex-col gap-3 p-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Store</span>
-              <Badge size="sm" variant={presentation.tone}>
-                {presentation.label}
-              </Badge>
-            </div>
-            <p className="break-words text-xs text-muted-foreground">{presentation.detail}</p>
-          </div>
-          <div className="flex flex-col border-t border-border">
-            <ConnectRow kind="anarlog" onConnect={onConnect} overview={overview} state={state} />
-          </div>
-        </CardPanel>
-      </Card>
-    </section>
-  );
-}
-
-/**
- * One connected account. Disconnect confirms in place rather than in a dialog:
- * the row already says which account it is, and a dialog would move that
- * question away from its answer.
+ * One connected account, indented under its connector. Disconnect confirms in
+ * place rather than in a dialog: the row already says which account it is, and
+ * a dialog would move that question away from its answer.
  */
 export function ConnectorAccountRow({
   account,
@@ -360,33 +227,35 @@ export function ConnectorAccountRow({
   const notice = noticeFor(state, scope);
 
   return (
-    <div className="flex flex-col gap-1.5 py-3">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{account.displayName}</span>
-            <Badge size="sm" variant="secondary">
-              {connectorKindLabel(account.kind)}
-            </Badge>
-            <Badge size="sm" variant={status.tone}>
-              {status.label}
-            </Badge>
-          </div>
-          <p
-            className={cn(
-              "mt-0.5 text-xs",
-              account.lastSyncedAt === null ? UNKNOWN_CLASS : "text-muted-foreground",
-            )}
-          >
+    <div className="flex flex-col gap-1.5 py-2.5">
+      <div className={ROW_GRID}>
+        <span className={cn("flex min-w-0 items-baseline gap-2", ACCOUNT_INDENT)}>
+          <span className="truncate text-sm text-muted-foreground">{account.displayName}</span>
+          <span className="shrink-0 text-xs text-muted-foreground/70">
             {formatLastSynced(account.lastSyncedAt)}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+          </span>
+        </span>
+        <span className={SECONDARY_CELL} />
+        <span className={STATUS_CELL}>
+          {account.status === "connected" ? (
+            <CheckIcon aria-label={status.label} className="size-4 text-success-foreground" />
+          ) : (
+            <AlertTriangleIcon
+              aria-label={status.label}
+              className={cn(
+                "size-4",
+                account.status === "revoked" ? "text-destructive-foreground" : "text-warning",
+              )}
+            />
+          )}
+        </span>
+        <span className={ACTION_CELL}>
           <Button
+            aria-label={`Sync ${account.displayName}`}
             disabled={isPending}
             onClick={() => onSync(account.id)}
             size="xs"
-            variant="outline"
+            variant="ghost-muted"
           >
             {isPending ? <Spinner className="size-3.5" /> : <RefreshCwIcon className="size-3.5" />}
             Sync
@@ -401,14 +270,16 @@ export function ConnectorAccountRow({
               Disconnect
             </Button>
           )}
-        </div>
+        </span>
       </div>
 
       {status.recovery === null ? null : (
-        <p className="text-xs text-muted-foreground">{status.recovery}</p>
+        <p className={cn("text-xs text-muted-foreground", ACCOUNT_INDENT)}>{status.recovery}</p>
       )}
       {showsDetail(account) ? (
-        <p className="break-words text-xs text-muted-foreground">{account.detail}</p>
+        <p className={cn("break-words text-xs text-muted-foreground", ACCOUNT_INDENT)}>
+          {account.detail}
+        </p>
       ) : null}
 
       {isConfirming ? (
@@ -441,14 +312,138 @@ export function ConnectorAccountRow({
   );
 }
 
-export function ConnectorAccountList({
+/** The only field on the page, and only where it is the thing standing in the way. */
+function ClientIdField({
   overview,
   state,
+  onSave,
+}: {
+  overview: ConnectorsOverview;
+  state: ConnectorActionState;
+  onSave: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const intent = clientIdSaveIntent(draft, overview.google);
+  const isSaving = state.pendingScope === CLIENT_ID_SCOPE;
+  const notice = noticeFor(state, CLIENT_ID_SCOPE);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          aria-label="Google client id"
+          autoComplete="off"
+          className="sm:flex-1"
+          disabled={isSaving}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="000000000000-xxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+          spellCheck={false}
+          value={draft}
+        />
+        <Button
+          className="sm:self-start"
+          disabled={intent === "unchanged" || isSaving}
+          onClick={() => {
+            onSave(draft);
+            setDraft("");
+          }}
+          size="sm"
+          variant={intent === "clear" ? "destructive-outline" : "outline"}
+        >
+          {isSaving ? <Spinner className="size-3.5" /> : null}
+          {intent === "clear" ? "Use the built-in app" : "Save"}
+        </Button>
+      </div>
+      {notice === null ? null : <NoticeLine notice={notice} />}
+    </div>
+  );
+}
+
+/**
+ * Everything the page has to say about the OAuth client id, in one line at the
+ * bottom.
+ *
+ * A release build carries its own, so for almost everyone this is a footnote
+ * they never open. A fork, a Workspace org that only allows apps it approved,
+ * or a source checkout with no id at all opens it and pastes one — that case
+ * is a sentence and a field, not a section of the page.
+ */
+export function GoogleProjectFooter({
+  overview,
+  state,
+  onSave,
+}: {
+  overview: ConnectorsOverview;
+  state: ConnectorActionState;
+  onSave: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const missing = needsGoogleSetup(overview.google);
+
+  return (
+    <div className="flex flex-col gap-2 pt-1">
+      <p className="text-xs text-muted-foreground" id={CLIENT_ID_NOTE_ID}>
+        {missing
+          ? "This build ships no Google client id, so Google sign-in is off."
+          : `${clientIdHintLabel(overview.google)}.`}{" "}
+        <button
+          className="underline-offset-2 hover:text-foreground hover:underline"
+          onClick={() => setIsOpen(!isOpen)}
+          type="button"
+        >
+          {isOpen ? "Never mind" : missing ? "Add one" : "Use your own Google project"}
+        </button>
+      </p>
+      {isOpen ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-muted-foreground">
+            Create an OAuth client of type “Desktop app” in your Google Cloud project and paste its
+            id. It is stored on this environment, never in the browser.
+          </p>
+          <ClientIdField onSave={onSave} overview={overview} state={state} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The one blocker nobody at a remote browser can clear from where they are
+ * standing, said once above the list instead of three times inside it.
+ */
+export function RemoteOAuthNotice() {
+  return (
+    <p className="flex items-start gap-2 text-xs text-muted-foreground">
+      <MonitorOffIcon className="mt-px size-3.5 shrink-0" />
+      <span id={REMOTE_HINT_ID}>
+        Google sends you back to a loopback address on this environment's machine, so sign-in has to
+        be started there. Syncing and disconnecting work from here.
+      </span>
+    </p>
+  );
+}
+
+function ConnectorsSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      <Skeleton className="h-8 w-full rounded-lg" />
+      <Skeleton className="h-8 w-full rounded-lg" />
+      <Skeleton className="h-8 w-full rounded-lg" />
+    </div>
+  );
+}
+
+/** The whole page's content: one list, connectors with their accounts under them. */
+export function ConnectorList({
+  overview,
+  state,
+  onConnect,
   onSync,
   onDisconnect,
 }: {
   overview: ConnectorsOverview;
   state: ConnectorActionState;
+  onConnect: (kind: ConnectorKind) => void;
   onSync: (accountId: string) => void;
   onDisconnect: (accountId: string) => void;
 }) {
@@ -462,23 +457,6 @@ export function ConnectorAccountList({
       ? notice
       : null;
 
-  if (overview.accounts.length === 0) {
-    return (
-      <div className="flex flex-col gap-2">
-        {orphanNotice === null ? null : <NoticeLine notice={orphanNotice} />}
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No accounts connected</EmptyTitle>
-            <EmptyDescription>
-              Connect one above and Nomior starts pulling from it: calendar events to match recorded
-              sessions against, mail to cite as context, and Anarlog's meetings and transcripts.
-              Until then every surface shows sample data.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
-    );
-  }
   return (
     <div className="flex flex-col">
       {orphanNotice === null ? null : (
@@ -486,46 +464,28 @@ export function ConnectorAccountList({
           <NoticeLine notice={orphanNotice} />
         </div>
       )}
-      <div className="flex flex-col divide-y divide-border">
-        {orderAccounts(overview.accounts).map((account) => (
-          <ConnectorAccountRow
-            account={account}
-            key={account.id}
-            onDisconnect={onDisconnect}
-            onSync={onSync}
-            state={state}
-          />
+      <div className={cn(ROW_GRID, "pb-1.5 text-xs text-muted-foreground")}>
+        <span>Connector</span>
+        <span className={SECONDARY_CELL}>Type</span>
+        <span className={STATUS_CELL}>Status</span>
+        <span />
+      </div>
+      <div className="flex flex-col divide-y divide-border border-t border-border">
+        {CONNECTOR_KIND_ORDER.map((kind) => (
+          <div className="flex flex-col divide-y divide-border/60" key={kind}>
+            <ConnectorRow kind={kind} onConnect={onConnect} overview={overview} state={state} />
+            {accountsOfKind(overview.accounts, kind).map((account) => (
+              <ConnectorAccountRow
+                account={account}
+                key={account.id}
+                onDisconnect={onDisconnect}
+                onSync={onSync}
+                state={state}
+              />
+            ))}
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/**
- * The one blocker nobody at a remote browser can clear from where they are
- * standing, said once at the top instead of only inside a disabled button.
- */
-export function RemoteOAuthNotice() {
-  return (
-    <Alert controlAlignment="first-line" variant="warning">
-      <MonitorOffIcon />
-      <AlertTitle>Google sign-in has to be started on this environment's machine</AlertTitle>
-      <AlertDescription>
-        Google sends you back to a loopback address on the machine running this environment, and
-        this browser is somewhere else, so the sign-in could never finish here. Open Nomior Code on
-        that machine to connect a Google account. Everything else on this page — the client id,
-        syncing, disconnecting — works from here.
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-function ConnectorsSkeleton() {
-  return (
-    <div className="flex flex-col gap-6">
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-28 w-full rounded-xl" />
-      <Skeleton className="h-24 w-full rounded-lg" />
     </div>
   );
 }
@@ -634,8 +594,8 @@ export function ConnectorsPanel() {
       run(CLIENT_ID_SCOPE, async () => {
         await port.setGoogleClientId(trimmed);
         return trimmed.length === 0
-          ? "Client id cleared. Google connectors cannot be connected until you add one."
-          : "Client id saved.";
+          ? "Back to the built-in Google app."
+          : "Client id saved. Connect an account.";
       });
     },
     [port, run],
@@ -690,20 +650,14 @@ export function ConnectorsPanel() {
   const state: ConnectorActionState = { pendingScope, notice };
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        {port.isFixture ? (
-          // Without this the page would claim accounts are connected on a
-          // client that has no environment to connect them to.
-          <Badge className="self-start" size="sm" variant="warning">
-            Sample data
-          </Badge>
-        ) : null}
-        <p className="text-sm text-muted-foreground">
-          Where Nomior's own data comes from. Each connector runs on this environment's machine and
-          keeps its credentials there.
+    <div className="flex flex-col gap-4">
+      {port.isFixture ? (
+        // Without this the page would claim accounts are connected on a client
+        // that has no environment to connect them to.
+        <p className="text-xs text-muted-foreground">
+          Sample data. Pair an environment to connect your own accounts.
         </p>
-      </div>
+      ) : null}
 
       {overview === null ? (
         <ConnectorsSkeleton />
@@ -711,34 +665,15 @@ export function ConnectorsPanel() {
         <>
           {overview.canStartLocalOAuth ? null : <RemoteOAuthNotice />}
 
-          <GoogleConnectorSection onConnect={handleConnect} overview={overview} state={state} />
-
-          <section aria-label="Connected accounts" className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-medium">Connected accounts</h2>
-              {overview.accounts.some((account) => account.status !== "connected") ? (
-                <Badge size="sm" variant="warning">
-                  <AlertTriangleIcon />
-                  Needs attention
-                </Badge>
-              ) : null}
-            </div>
-            <ConnectorAccountList
-              onDisconnect={handleDisconnect}
-              onSync={handleSync}
-              overview={overview}
-              state={state}
-            />
-          </section>
-
-          <AnarlogConnectorSection onConnect={handleConnect} overview={overview} state={state} />
-
-          <AdvancedConnectorSection
+          <ConnectorList
             onConnect={handleConnect}
-            onSaveClientId={handleSaveClientId}
+            onDisconnect={handleDisconnect}
+            onSync={handleSync}
             overview={overview}
             state={state}
           />
+
+          <GoogleProjectFooter onSave={handleSaveClientId} overview={overview} state={state} />
         </>
       )}
     </div>

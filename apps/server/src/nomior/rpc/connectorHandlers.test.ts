@@ -244,7 +244,11 @@ describe("connector handlers over real stores", () => {
         const configured = yield* listConnectors(deps);
 
         assert.isTrue(configured.google.configured);
-        assert.strictEqual(configured.google.clientIdHint, ".com");
+        // From before the suffix every Google id shares, so it identifies one.
+        assert.strictEqual(
+          configured.google.clientIdHint,
+          CLIENT_ID.replace(".apps.googleusercontent.com", "").slice(-4),
+        );
         assert.strictEqual(configured.google.clientIdHint?.length, 4);
         // The whole value is in the store, and only in the store.
         assert.deepStrictEqual(yield* clientIds.get, Option.some(CLIENT_ID));
