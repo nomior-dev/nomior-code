@@ -8,8 +8,10 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Toggle, ToggleGroup } from "../components/ui/toggle-group";
 import {
   accountColor,
+  AGENDA_DAY_COUNT,
   CALENDAR_VIEWS,
   calendarRangeLabel,
+  calendarStepLabel,
   calendarViewLabel,
   eventsForAccounts,
   isCalendarView,
@@ -37,6 +39,22 @@ import { usePortData } from "./usePortData";
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 22;
 
+/**
+ * A block at least this tall carries its own time line, the same threshold the
+ * calendar's default chip switches at. Below it there is one line to spend and
+ * the title is what goes on it.
+ */
+const STACKED_BLOCK_MINUTES = 45;
+const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
+const timeRangeLabel = (start: Date, end: Date, allDay: boolean) =>
+  allDay
+    ? "All day"
+    : `${start.toLocaleTimeString(undefined, TIME_FORMAT)} – ${end.toLocaleTimeString(
+        undefined,
+        TIME_FORMAT,
+      )}`;
+
 function ArtifactChips({ meeting }: { meeting: NomiorEventData["meeting"] }) {
   if (meeting === null) return null;
   return (
@@ -59,23 +77,44 @@ function ArtifactChips({ meeting }: { meeting: NomiorEventData["meeting"] }) {
  * or notes behind it — has to survive into every view, and there is no seam to
  * append to the default one. Position, size and colour still come from the
  * component around it.
+ *
+ * A tall time-grid block lays its children out in a column, so the title and
+ * its glyphs are one explicit row: left to the parent they would each land on
+ * a line of their own and read as specks stacked under the title. The time is
+ * spelled out wherever the default chip spelled it out — a leading column in
+ * the agenda, a second line on a block tall enough for one.
  */
 function EventBody({ occurrence, view }: EventCalendarRenderEventProps<NomiorEventData>) {
   const { event } = occurrence;
   const data = event.data;
+  const inTimeGrid = view === "week" || view === "day" || view === "resource";
+  const minutes = (occurrence.end.getTime() - occurrence.start.getTime()) / 60_000;
+  const showsTime = inTimeGrid && !occurrence.allDay && minutes >= STACKED_BLOCK_MINUTES;
   return (
     <>
-      {view === "month" || view === "agenda" ? (
-        <span
-          aria-hidden
-          className="-me-0.5 size-1.5 shrink-0 rounded-full bg-(--ec-event-color)"
-        />
+      {view === "agenda" ? (
+        <span className="w-40 shrink-0 truncate text-muted-foreground tabular-nums">
+          {timeRangeLabel(occurrence.start, occurrence.end, occurrence.allDay)}
+        </span>
       ) : null}
-      {event.recurringEventId === undefined ? null : (
-        <RepeatIcon aria-hidden className="size-2.5 shrink-0 opacity-70" />
-      )}
-      <span className="truncate font-medium">{event.title}</span>
-      <ArtifactChips meeting={data?.meeting ?? null} />
+      <span className="flex w-full min-w-0 items-center gap-1.5">
+        {view === "month" || view === "agenda" ? (
+          <span
+            aria-hidden
+            className="-me-0.5 size-1.5 shrink-0 rounded-full bg-(--ec-event-color)"
+          />
+        ) : null}
+        {event.recurringEventId === undefined ? null : (
+          <RepeatIcon aria-hidden className="size-2.5 shrink-0 opacity-70" />
+        )}
+        <span className="truncate font-medium">{event.title}</span>
+        <ArtifactChips meeting={data?.meeting ?? null} />
+      </span>
+      {showsTime ? (
+        <span className="truncate text-muted-foreground tabular-nums">
+          {timeRangeLabel(occurrence.start, occurrence.end, false)}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -199,7 +238,7 @@ export function CalendarPanel() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <Button
-            aria-label={`Previous ${calendarViewLabel(view).toLowerCase()}`}
+            aria-label={`Previous ${calendarStepLabel(view)}`}
             onClick={() => setDate((current) => shiftCalendarDate(current, view, -1))}
             size="icon-sm"
             variant="ghost"
@@ -210,7 +249,7 @@ export function CalendarPanel() {
             Today
           </Button>
           <Button
-            aria-label={`Next ${calendarViewLabel(view).toLowerCase()}`}
+            aria-label={`Next ${calendarStepLabel(view)}`}
             onClick={() => setDate((current) => shiftCalendarDate(current, view, 1))}
             size="icon-sm"
             variant="ghost"
@@ -259,6 +298,7 @@ export function CalendarPanel() {
         <PortErrorState label="Couldn't load the calendar." onRetry={retryLoad} />
       ) : (
         <EventCalendar<NomiorEventData>
+          agendaDayCount={AGENDA_DAY_COUNT}
           className="min-h-0 flex-1 overflow-hidden rounded-xl border"
           date={date}
           dayEndHour={DAY_END_HOUR}
@@ -278,6 +318,10 @@ export function CalendarPanel() {
           resources={resources}
           view={view}
           views={[...CALENDAR_VIEWS]}
+          // Monday, matching `startOfWeek` in calendar.logic.ts. The header
+          // label and the grid have to agree on where a week starts, or the
+          // range above the grid names days the grid is not showing.
+          weekStartsOn={1}
         >
           <EventCalendarContent className="min-h-0 flex-1" />
         </EventCalendar>

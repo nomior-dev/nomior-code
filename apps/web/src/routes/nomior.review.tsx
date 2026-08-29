@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ScrollArea } from "../components/ui/scroll-area";
 import { ReviewBoardPanel } from "../nomior/ReviewBoardPanel";
 
+/**
+ * No scroll container: the lanes take the height of the page and scroll inside
+ * it, which is what makes a long queue scroll under its own header instead of
+ * pushing the four other lanes off the bottom.
+ */
 function NomiorReviewRoute() {
   return (
-    <ScrollArea className="min-h-0 flex-1">
-      <div className="flex min-w-0 flex-col pt-4">
-        <ReviewBoardPanel />
-      </div>
-    </ScrollArea>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col pt-4">
+      <ReviewBoardPanel />
+    </div>
   );
 }
 

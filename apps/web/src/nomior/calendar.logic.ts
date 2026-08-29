@@ -58,11 +58,26 @@ export function addDays(date: Date, days: number): Date {
   return shifted;
 }
 
+/** The views whose grid is one day. The by-account view is one day per column. */
+const isDayShaped = (view: CalendarViewId) => view === "day" || view === "resource";
+
 /**
- * One step of whatever the current view shows. Month steps a month, the
- * day-shaped views step a day, and everything else steps a week — the
- * by-account view included, since its columns are accounts and its rows are
- * one week's worth of time.
+ * How far ahead the agenda lists, in days. Passed to the grid rather than left
+ * to its default so the header arithmetic here and the grid cannot drift.
+ */
+export const AGENDA_DAY_COUNT = 30;
+
+/** How many days one press of an arrow moves, for the views measured in days. */
+function stepDays(view: CalendarViewId): number {
+  if (isDayShaped(view)) return 1;
+  return view === "agenda" ? AGENDA_DAY_COUNT : 7;
+}
+
+/**
+ * One step of whatever the current view shows.
+ *
+ * The steps have to match the grid's own: an arrow that moves a week while the
+ * grid moves a day skips six days of events without saying so.
  */
 export function shiftCalendarDate(date: Date, view: CalendarViewId, direction: 1 | -1): Date {
   if (view === "month") {
@@ -73,7 +88,17 @@ export function shiftCalendarDate(date: Date, view: CalendarViewId, direction: 1
     shifted.setMonth(shifted.getMonth() + direction);
     return shifted;
   }
-  return addDays(date, (view === "day" ? 1 : 7) * direction);
+  return addDays(date, stepDays(view) * direction);
+}
+
+/**
+ * What one press of an arrow moves, for the arrows' labels. The view's own name
+ * will not do: "Previous by account" names no direction a user can picture.
+ */
+export function calendarStepLabel(view: CalendarViewId): string {
+  if (view === "month") return "month";
+  if (isDayShaped(view)) return "day";
+  return view === "agenda" ? `${AGENDA_DAY_COUNT} days` : "week";
 }
 
 const MONTH_DAY: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -83,11 +108,13 @@ export function calendarRangeLabel(date: Date, view: CalendarViewId): string {
   if (view === "month") {
     return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   }
-  if (view === "day") {
+  if (isDayShaped(view)) {
     return date.toLocaleDateString(undefined, { weekday: "long", ...MONTH_DAY });
   }
-  const start = startOfWeek(date);
-  const end = addDays(start, 6);
+  // The agenda runs forward from the day you are on; a week snaps to its
+  // Monday. Naming the wrong one is naming days the list does not contain.
+  const start = view === "agenda" ? date : startOfWeek(date);
+  const end = addDays(start, stepDays(view) - 1);
   return `${start.toLocaleDateString(undefined, MONTH_DAY)} – ${end.toLocaleDateString(
     undefined,
     MONTH_DAY,

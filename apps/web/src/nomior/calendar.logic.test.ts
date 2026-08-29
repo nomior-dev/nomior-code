@@ -3,7 +3,9 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   accountColor,
   accountEventColor,
+  AGENDA_DAY_COUNT,
   calendarRangeLabel,
+  calendarStepLabel,
   calendarViewLabel,
   CALENDAR_VIEWS,
   eventsForAccounts,
@@ -62,6 +64,14 @@ describe("views", () => {
     // Accounts are the only dimension; "Resource" would name nothing.
     expect(calendarViewLabel("resource")).toBe("By account");
   });
+
+  it("labels the arrows by what they move, not by the view's name", () => {
+    expect(calendarStepLabel("month")).toBe("month");
+    expect(calendarStepLabel("week")).toBe("week");
+    expect(calendarStepLabel("agenda")).toBe(`${AGENDA_DAY_COUNT} days`);
+    expect(calendarStepLabel("day")).toBe("day");
+    expect(calendarStepLabel("resource")).toBe("day");
+  });
 });
 
 describe("stepping the date", () => {
@@ -71,8 +81,8 @@ describe("stepping the date", () => {
     expect(shiftCalendarDate(august, "month", -1).getMonth()).toBe(6);
     expect(shiftCalendarDate(august, "day", 1).getDate()).toBe(16);
     expect(shiftCalendarDate(august, "week", 1).getDate()).toBe(22);
-    // The by-account view is a week of columns, so it steps a week too.
-    expect(shiftCalendarDate(august, "resource", -1).getDate()).toBe(8);
+    // The by-account view columns one day by account, so it steps a day.
+    expect(shiftCalendarDate(august, "resource", -1).getDate()).toBe(14);
   });
 
   it("does not skip February when stepping off a 31st", () => {
@@ -86,10 +96,22 @@ describe("range label", () => {
     const date = new Date(2026, 7, 26);
     expect(calendarRangeLabel(date, "month")).toContain("2026");
     expect(calendarRangeLabel(date, "day")).toContain("26");
+    // Same grid, one day, so the same label: the by-account view splits that
+    // day into account columns rather than adding days.
+    expect(calendarRangeLabel(date, "resource")).toBe(calendarRangeLabel(date, "day"));
     // A week label spans its own Monday to Sunday, not the clicked day.
     const week = calendarRangeLabel(date, "week");
     expect(week).toContain("24");
     expect(week).toContain("30");
+  });
+
+  it("runs the agenda label forward from the day, not from Monday", () => {
+    // The agenda lists AGENDA_DAY_COUNT days starting where you are; snapping
+    // its label to a week would name days the list does not contain.
+    const label = calendarRangeLabel(new Date(2026, 7, 26), "agenda");
+    expect(label).toContain("26");
+    expect(label).toContain("Sep");
+    expect(shiftCalendarDate(new Date(2026, 7, 26), "agenda", 1).getDate()).toBe(25);
   });
 });
 

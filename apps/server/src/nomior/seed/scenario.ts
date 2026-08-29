@@ -80,11 +80,18 @@ export interface SeedGoogleAccount extends SeedConnectorAccount {
   readonly colorIndex: number;
 }
 
+/**
+ * A Google account is named by its address, never by a role. Connecting one
+ * stores the address the provider reports, so a seeded account that called
+ * itself "Work calendar" would be the one account in the product wearing a
+ * label no real connect can produce.
+ */
+
 export const seedGoogleAccounts: ReadonlyArray<SeedGoogleAccount> = [
   {
     accountId: "google-work",
     driverKind: "googleCalendar",
-    displayName: "Work calendar",
+    displayName: "work@nomior.example",
     email: "work@nomior.example",
     capsule: "nomior-code",
     colorIndex: 0,
@@ -96,7 +103,7 @@ export const seedGoogleAccounts: ReadonlyArray<SeedGoogleAccount> = [
   {
     accountId: "google-personal",
     driverKind: "googleCalendar",
-    displayName: "Personal calendar",
+    displayName: "personal@gmail.example",
     email: "personal@gmail.example",
     capsule: "home-studio",
     colorIndex: 1,
