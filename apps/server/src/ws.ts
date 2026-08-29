@@ -119,6 +119,7 @@ import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import { requiredScopeForRpcMethod } from "./auth/RpcAuthorization.ts";
 import { NomiorPanelRpcLive } from "./nomior/NomiorRuntime.ts";
+import { isLocalClientRequest } from "./nomior/rpc/clientLocality.ts";
 import { makeNomiorPanelHandlers } from "./nomior/rpc/wsHandlers.ts";
 import * as ProcessDiagnostics from "./diagnostics/ProcessDiagnostics.ts";
 import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts";
@@ -456,6 +457,7 @@ const makeWsRpcLayer = (
   clientOrigin: OrchestrationClientOrigin,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
+  clientIsLocal: boolean,
 ) =>
   WsRpcGroup.toLayer(
     Effect.gen(function* () {
@@ -1219,6 +1221,7 @@ const makeWsRpcLayer = (
       const nomiorPanelHandlers = makeNomiorPanelHandlers({
         observeRpcEffect,
         listProviders: providerRegistry.getProviders,
+        canStartLocalOAuth: clientIsLocal,
       });
 
       return WsRpcGroup.of({
@@ -2545,6 +2548,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
               clientOrigin,
               clientAnalyticsProps,
               previewAutomationBroker,
+              isLocalClientRequest(request),
             ).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
               Layer.provide(NomiorPanelRpcLive),

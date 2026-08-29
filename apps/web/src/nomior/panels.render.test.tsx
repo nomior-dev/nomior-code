@@ -10,8 +10,23 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { addDays, startOfWeek } from "./calendar.logic";
 import { AgendaList, CalendarPanel, WeekGrid } from "./CalendarPanel";
+import {
+  accountScope,
+  AnarlogConnectorSection,
+  ConnectorAccountList,
+  ConnectorAccountRow,
+  ConnectorsPanel,
+  GoogleConnectorSection,
+  RemoteOAuthNotice,
+  type ConnectorActionState,
+} from "./ConnectorsPanel";
 import { ContextMemoryPanel, MemoryCandidateRow } from "./ContextMemoryPanel";
 import { createFixtureNomiorPort } from "./fixtures";
+import {
+  ANARLOG_NOT_FOUND,
+  ANARLOG_UNSUPPORTED_SCHEMA,
+  GOOGLE_CLIENT_UNCONFIGURED,
+} from "./fixtures.connectors";
 import { InstanceRow, InstancesPanel } from "./InstancesPanel";
 import {
   MeetingListRow,
@@ -53,6 +68,12 @@ describe("Nomior panels render standalone", () => {
     const markup = renderToStaticMarkup(<MeetingsPanel />);
     expect(markup).toContain('aria-label="Meetings"');
     expect(markup).toContain("All meetings");
+  });
+
+  it("connectors labels its sample data before anything claims to be connected", () => {
+    const markup = renderToStaticMarkup(<ConnectorsPanel />);
+    expect(markup).toContain("Sample data");
+    expect(markup).toContain("Where Nomior");
   });
 });
 
@@ -214,6 +235,181 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(markup).toContain("<ol");
     expect(markup).toContain("<strong");
     expect(markup).not.toContain("## Decisions");
+  });
+
+  const idle: ConnectorActionState = { pendingScope: null, notice: null };
+
+  it("account rows keep never-synced, retryable and revoked apart", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const markup = renderToStaticMarkup(
+      <ConnectorAccountList onDisconnect={noop} onSync={noop} overview={overview} state={idle} />,
+    );
+    expect(markup).toContain("work@nomior.example");
+    expect(markup).toContain("Google Calendar");
+    // Three statuses, three sentences: one retryable, one terminal, one blank.
+    expect(markup).toContain("Sync failed");
+    expect(markup).toContain("Access revoked");
+    expect(markup).toContain("Never synced");
+    expect(markup).toContain("Sync again");
+    expect(markup).toContain("Retrying will not help");
+    // The redacted detail is the only place a failure explains itself.
+    expect(markup).toContain("daily quota is spent");
+  });
+
+  it("no accounts says what connecting one would get you", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const markup = renderToStaticMarkup(
+      <ConnectorAccountList
+        onDisconnect={noop}
+        onSync={noop}
+        overview={{ ...overview, accounts: [] }}
+        state={idle}
+      />,
+    );
+    expect(markup).toContain("No accounts connected");
+    expect(markup).toContain("sample data");
+  });
+
+  it("disconnect asks before it fires, and a pending action locks its own row", async () => {
+    const port = createFixtureNomiorPort(now);
+    const account = (await port.listConnectors()).accounts[0]!;
+    const resting = renderToStaticMarkup(
+      <ConnectorAccountRow account={account} onDisconnect={noop} onSync={noop} state={idle} />,
+    );
+    expect(resting).toContain("Disconnect");
+    // The confirmation is not pre-armed: the first click only asks.
+    expect(resting).not.toContain("drops its stored token");
+
+    const pending = renderToStaticMarkup(
+      <ConnectorAccountRow
+        account={account}
+        onDisconnect={noop}
+        onSync={noop}
+        state={{ pendingScope: accountScope(account.id), notice: null }}
+      />,
+    );
+    expect(pending).toContain("disabled");
+  });
+
+  it("an action failure lands next to the control that fired it", async () => {
+    const port = createFixtureNomiorPort(now);
+    const account = (await port.listConnectors()).accounts[0]!;
+    const markup = renderToStaticMarkup(
+      <ConnectorAccountRow
+        account={account}
+        onDisconnect={noop}
+        onSync={noop}
+        state={{
+          pendingScope: null,
+          notice: { scope: accountScope(account.id), tone: "error", text: "Google said no." },
+        }}
+      />,
+    );
+    expect(markup).toContain("Google said no.");
+    expect(markup).toContain('role="status"');
+  });
+
+  it("a disconnect result outlives the row it removed", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const [removed, ...remaining] = overview.accounts;
+    const markup = renderToStaticMarkup(
+      <ConnectorAccountList
+        onDisconnect={noop}
+        onSync={noop}
+        overview={{ ...overview, accounts: remaining }}
+        state={{
+          pendingScope: null,
+          notice: { scope: accountScope(removed!.id), tone: "success", text: "Disconnected." },
+        }}
+      />,
+    );
+    expect(markup).toContain("Disconnected.");
+  });
+
+  it("a first run with no client id reads as a setup step, not a failure", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const markup = renderToStaticMarkup(
+      <GoogleConnectorSection
+        onConnect={noop}
+        onSaveClientId={noop}
+        overview={{ ...overview, google: GOOGLE_CLIENT_UNCONFIGURED }}
+        state={idle}
+      />,
+    );
+    expect(markup).toContain("No client id yet");
+    expect(markup).toContain("Add a Google OAuth client id above first.");
+    expect(markup).toContain("no bundled one");
+    // Connect is off, but it says why rather than sitting there dead.
+    expect(markup).toContain("disabled");
+  });
+
+  it("a configured client id shows its last four characters and nothing more", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const markup = renderToStaticMarkup(
+      <GoogleConnectorSection
+        onConnect={noop}
+        onSaveClientId={noop}
+        overview={overview}
+        state={idle}
+      />,
+    );
+    expect(markup).toContain("Client id ending j4kq");
+    expect(markup).not.toContain("googleusercontent.com");
+  });
+
+  it("a remote client is told the redirect cannot land here, ahead of any fixable reason", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const remote = { ...overview, canStartLocalOAuth: false, google: GOOGLE_CLIENT_UNCONFIGURED };
+    expect(renderToStaticMarkup(<RemoteOAuthNotice />)).toContain("loopback address");
+    const markup = renderToStaticMarkup(
+      <GoogleConnectorSection
+        onConnect={noop}
+        onSaveClientId={noop}
+        overview={remote}
+        state={idle}
+      />,
+    );
+    expect(markup).toContain("loopback address");
+    expect(markup).toContain("disabled");
+    // The client id is still missing, but saying so here would imply that
+    // pasting one is enough to finish a sign-in this browser cannot finish.
+    expect(markup).not.toContain("Add a Google OAuth client id above first.");
+  });
+
+  it("anarlog reads as found, absent or refused, never as one merged state", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const withoutAccounts = { ...overview, accounts: [] };
+    const found = renderToStaticMarkup(
+      <AnarlogConnectorSection onConnect={noop} overview={withoutAccounts} state={idle} />,
+    );
+    const missing = renderToStaticMarkup(
+      <AnarlogConnectorSection
+        onConnect={noop}
+        overview={{ ...withoutAccounts, anarlog: ANARLOG_NOT_FOUND }}
+        state={idle}
+      />,
+    );
+    const refused = renderToStaticMarkup(
+      <AnarlogConnectorSection
+        onConnect={noop}
+        overview={{ ...withoutAccounts, anarlog: ANARLOG_UNSUPPORTED_SCHEMA }}
+        state={idle}
+      />,
+    );
+    expect(found).toContain("Store found");
+    expect(found).toContain("anarlog.sqlite");
+    expect(missing).toContain("No store");
+    expect(missing).toContain("no store there");
+    // Found and refused names the version, so nobody reads it as absent.
+    expect(refused).toContain("Schema too new");
+    expect(refused).toContain("v9");
   });
 
   it("port error state names the failure and offers a retry", () => {

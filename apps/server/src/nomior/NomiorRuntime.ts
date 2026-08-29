@@ -40,7 +40,12 @@ import * as Layer from "effect/Layer";
 
 import * as CalendarEventStore from "./connectors/calendar/CalendarEventStore.ts";
 import * as ConnectorAccountStore from "./connectors/ConnectorAccountStore.ts";
+import * as ConnectorCursorStore from "./connectors/ConnectorCursorStore.ts";
+import * as ConnectorSyncRunStore from "./connectors/ConnectorSyncRunStore.ts";
 import { ConnectorContextIngestLive } from "./connectors/ContextIngestAdapter.ts";
+import * as GoogleClientIdStore from "./connectors/google/GoogleClientIdStore.ts";
+import * as GoogleTokenVault from "./connectors/google/GoogleTokenVault.ts";
+import { GoogleTokenPortLive } from "./connectors/google/googleapisRuntime.ts";
 import { ContextBrokerLive } from "./context/ContextBroker.ts";
 import { ContextRetrievalPortLive } from "./context/RetrievalPortLive.ts";
 import * as MeetingStore from "./meetings/MeetingStore.ts";
@@ -104,8 +109,27 @@ export const NomiorReviewPortsLive = Layer.mergeAll(
 );
 
 /**
+ * What the connectors panel writes: cursors and sync history for a manual
+ * sync, the client-id and token stores behind Connect and Disconnect.
+ *
+ * `GoogleClientConfig` is deliberately absent. It carries the operator's OAuth
+ * client id, which is a value in a store and is normally unset on first run; a
+ * layer that failed to build without one would take down every websocket
+ * connection, so the handlers read it per request and provide it locally.
+ *
+ * Requires `SqlClient` and `ServerSecretStore`.
+ */
+export const NomiorConnectorRpcLive = Layer.mergeAll(
+  ConnectorCursorStore.layer,
+  ConnectorSyncRunStore.layer,
+  GoogleClientIdStore.layer,
+  GoogleTokenVault.layer,
+  GoogleTokenPortLive,
+);
+
+/**
  * Everything the `/nomior` panels read over RPC, in one layer for `ws.ts` to
- * provide. Requires only `SqlClient`.
+ * provide. Requires `SqlClient` and `ServerSecretStore`.
  *
  * Deliberately NOT `NomiorReviewPortsLive`: the board reads and annotates jobs,
  * it never runs a leg or publishes a verdict, so it needs `ReviewJobStore`
@@ -119,8 +143,12 @@ export const NomiorReviewPortsLive = Layer.mergeAll(
  * `MeetingStore` reads sources a previous sync already ingested.
  */
 export const NomiorPanelRpcLive = Layer.mergeAll(
-  NomiorContextLive,
+  // The connector-ingest layer rather than the bare context one: a manual sync
+  // writes through `ConnectorContextIngest`, and this composition keeps it on
+  // the same broker the panels read from instead of forking a second one.
+  NomiorConnectorIngestLive,
   NomiorSchedulerLive,
+  NomiorConnectorRpcLive,
   ReviewJobStore.layer,
   CalendarEventStore.layer,
   ConnectorAccountStore.layer,

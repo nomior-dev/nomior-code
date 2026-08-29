@@ -35,6 +35,26 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:meeting-get",
       tag: WS_METHODS.nomiorMeetingGet,
     }),
+    listConnectors: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:connectors-list",
+      tag: WS_METHODS.nomiorConnectorsList,
+    }),
+    setGoogleClientId: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:google-client-id-set",
+      tag: WS_METHODS.nomiorGoogleClientIdSet,
+    }),
+    connectConnector: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:connector-connect",
+      tag: WS_METHODS.nomiorConnectorConnect,
+    }),
+    disconnectConnector: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:connector-disconnect",
+      tag: WS_METHODS.nomiorConnectorDisconnect,
+    }),
+    syncConnector: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:connector-sync",
+      tag: WS_METHODS.nomiorConnectorSync,
+    }),
     listMemoryCandidates: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:memory-candidates-list",
       tag: WS_METHODS.nomiorMemoryCandidatesList,

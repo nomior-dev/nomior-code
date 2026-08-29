@@ -30,6 +30,12 @@ import {
   NomiorMeetingGetInput,
   NomiorMeetingsListInput,
   NomiorMeetingsListResult,
+  NomiorConnectorsListResult,
+  NomiorGoogleClientIdSetInput,
+  NomiorConnectorConnectInput,
+  NomiorConnectorConnectResult,
+  NomiorConnectorAccountInput,
+  NomiorConnectorSyncResult,
   NomiorMemoryCandidateResolveInput,
   NomiorMemoryCandidatesListResult,
   NomiorRequestError,
@@ -362,6 +368,11 @@ export const WS_METHODS = {
   nomiorCalendarEventsList: "nomior.calendar.eventsList",
   nomiorMeetingsList: "nomior.meetings.list",
   nomiorMeetingGet: "nomior.meetings.get",
+  nomiorConnectorsList: "nomior.connectors.list",
+  nomiorGoogleClientIdSet: "nomior.connectors.googleClientIdSet",
+  nomiorConnectorConnect: "nomior.connectors.connect",
+  nomiorConnectorDisconnect: "nomior.connectors.disconnect",
+  nomiorConnectorSync: "nomior.connectors.sync",
   nomiorInstancesList: "nomior.instances.list",
   nomiorInstanceSetPinned: "nomior.instances.setPinned",
   nomiorSchedulerGetState: "nomior.scheduler.getState",
@@ -1105,6 +1116,33 @@ export const WsNomiorMeetingGetRpc = Rpc.make(WS_METHODS.nomiorMeetingGet, {
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
 });
 
+export const WsNomiorConnectorsListRpc = Rpc.make(WS_METHODS.nomiorConnectorsList, {
+  success: NomiorConnectorsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorGoogleClientIdSetRpc = Rpc.make(WS_METHODS.nomiorGoogleClientIdSet, {
+  payload: NomiorGoogleClientIdSetInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorConnectorConnectRpc = Rpc.make(WS_METHODS.nomiorConnectorConnect, {
+  payload: NomiorConnectorConnectInput,
+  success: NomiorConnectorConnectResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorConnectorDisconnectRpc = Rpc.make(WS_METHODS.nomiorConnectorDisconnect, {
+  payload: NomiorConnectorAccountInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorConnectorSyncRpc = Rpc.make(WS_METHODS.nomiorConnectorSync, {
+  payload: NomiorConnectorAccountInput,
+  success: NomiorConnectorSyncResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
 export const WsNomiorInstancesListRpc = Rpc.make(WS_METHODS.nomiorInstancesList, {
   success: NomiorInstancesListResult,
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
@@ -1240,6 +1278,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsNomiorCalendarEventsListRpc,
   WsNomiorMeetingsListRpc,
   WsNomiorMeetingGetRpc,
+  WsNomiorConnectorsListRpc,
+  WsNomiorGoogleClientIdSetRpc,
+  WsNomiorConnectorConnectRpc,
+  WsNomiorConnectorDisconnectRpc,
+  WsNomiorConnectorSyncRpc,
   WsNomiorInstancesListRpc,
   WsNomiorInstanceSetPinnedRpc,
   WsNomiorSchedulerGetStateRpc,

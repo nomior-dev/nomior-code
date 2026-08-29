@@ -21,6 +21,12 @@ import type {
   NomiorMeetingDetail,
   NomiorMeetingGetInput,
   NomiorMeetingsListResult,
+  NomiorConnectorAccountInput,
+  NomiorConnectorConnectInput,
+  NomiorConnectorConnectResult,
+  NomiorConnectorsListResult,
+  NomiorConnectorSyncResult,
+  NomiorGoogleClientIdSetInput,
   NomiorMemoryCandidatesListResult,
   NomiorReviewJobsListResult,
   NomiorReviewRequestManualInput,
@@ -41,6 +47,15 @@ export interface NomiorCommandRunner {
   readonly searchContext: (input: NomiorContextSearchInput) => Settled<NomiorContextSearchResult>;
   readonly listMeetings: () => Settled<NomiorMeetingsListResult>;
   readonly getMeeting: (input: NomiorMeetingGetInput) => Settled<NomiorMeetingDetail>;
+  readonly listConnectors: () => Settled<NomiorConnectorsListResult>;
+  readonly setGoogleClientId: (input: NomiorGoogleClientIdSetInput) => Settled<void>;
+  readonly connectConnector: (
+    input: NomiorConnectorConnectInput,
+  ) => Settled<NomiorConnectorConnectResult>;
+  readonly disconnectConnector: (input: NomiorConnectorAccountInput) => Settled<void>;
+  readonly syncConnector: (
+    input: NomiorConnectorAccountInput,
+  ) => Settled<NomiorConnectorSyncResult>;
   readonly listMemoryCandidates: () => Settled<NomiorMemoryCandidatesListResult>;
   readonly resolveMemoryCandidate: (input: NomiorMemoryCandidateResolveInput) => Settled<void>;
   readonly listCalendarAccounts: () => Settled<NomiorCalendarAccountsListResult>;
@@ -87,6 +102,16 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
     openContextSource: () => Promise.resolve(),
     listMeetings: async () => (await value(runner.listMeetings())).meetings,
     getMeeting: (meetingId) => value(runner.getMeeting({ meetingId })),
+    listConnectors: () => value(runner.listConnectors()),
+    setGoogleClientId: async (clientId) => {
+      await value(runner.setGoogleClientId({ clientId }));
+    },
+    connectConnector: async (kind) =>
+      (await value(runner.connectConnector({ kind }))).authorizationUrl,
+    disconnectConnector: async (accountId) => {
+      await value(runner.disconnectConnector({ accountId }));
+    },
+    syncConnector: async (accountId) => (await value(runner.syncConnector({ accountId }))).ingested,
     listMemoryCandidates: async () => (await value(runner.listMemoryCandidates())).candidates,
     resolveMemoryCandidate: async (id, resolution) => {
       await value(runner.resolveMemoryCandidate({ id, resolution }));
@@ -129,6 +154,7 @@ export function whileConnecting(port: NomiorDataPort): NomiorDataPort {
     searchContext: never,
     listMeetings: never,
     getMeeting: never,
+    listConnectors: never,
     listMemoryCandidates: never,
     listCalendarAccounts: never,
     listCalendarEvents: never,

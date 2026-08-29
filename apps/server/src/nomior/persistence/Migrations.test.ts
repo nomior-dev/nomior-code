@@ -54,6 +54,8 @@ describe("Nomior migrations", () => {
         // 004_NomiorConnectorTables
         "nomior_connector_accounts",
         "nomior_connector_cursors",
+        // 008_NomiorConnectorSyncRuns
+        "nomior_connector_sync_runs",
       ]) {
         assert.include(names, expected);
       }

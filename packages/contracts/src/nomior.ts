@@ -320,6 +320,115 @@ export const NomiorMeetingGetInput = Schema.Struct({
 export type NomiorMeetingGetInput = typeof NomiorMeetingGetInput.Type;
 
 // ---------------------------------------------------------------------------
+// Connectors
+// ---------------------------------------------------------------------------
+
+/**
+ * Which connector a row is for. Mirrors the server's `ConnectorDriverKind`
+ * values rather than re-deriving them. A stored row whose driver is not listed
+ * here is dropped with a warning rather than failing the encode — one stale row
+ * must not blank the whole panel.
+ */
+export const NomiorConnectorKind = Schema.Literals(["googleCalendar", "gmail", "anarlog"]);
+export type NomiorConnectorKind = typeof NomiorConnectorKind.Type;
+
+/** `error` and `revoked` are distinct: one may recover on retry, one needs a reconnect. */
+export const NomiorConnectorStatus = Schema.Literals(["connected", "error", "revoked"]);
+export type NomiorConnectorStatus = typeof NomiorConnectorStatus.Type;
+
+export const NomiorConnectorAccount = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  kind: NomiorConnectorKind,
+  /** The account's own name for itself — an address for Google, a path for Anarlog. */
+  displayName: Schema.String,
+  status: NomiorConnectorStatus,
+  /** Null until the first sync completes; the panel says "never" rather than guessing. */
+  lastSyncedAt: Schema.NullOr(IsoDateTime),
+  /** Present only on `error`/`revoked`, and already redacted. */
+  detail: Schema.NullOr(Schema.String),
+});
+export type NomiorConnectorAccount = typeof NomiorConnectorAccount.Type;
+
+/**
+ * Whether this environment can start a Google OAuth flow at all.
+ *
+ * The flow is PKCE against a client id the operator supplies; there is no
+ * bundled one, so `configured: false` is the normal first-run state and the
+ * panel must offer the field rather than a dead Connect button.
+ */
+export const NomiorGoogleClientState = Schema.Struct({
+  configured: Schema.Boolean,
+  /** Last four characters only — enough to tell two ids apart, useless if leaked. */
+  clientIdHint: Schema.NullOr(Schema.String),
+});
+export type NomiorGoogleClientState = typeof NomiorGoogleClientState.Type;
+
+/**
+ * Where the Anarlog desktop app's local store is, if it is on this machine.
+ *
+ * `unsupportedSchema` is its own state on purpose: the reader pins a schema
+ * ceiling, so a newer Anarlog is a thing we detected and refuse to misread,
+ * not a thing we failed to find.
+ */
+export const NomiorAnarlogState = Schema.Struct({
+  detection: Schema.Literals(["found", "notFound", "unsupportedSchema"]),
+  /** Absolute path when `found`, else null. */
+  storePath: Schema.NullOr(Schema.String),
+  /** Set when `unsupportedSchema`, so the message can name the version. */
+  schemaVersion: Schema.NullOr(Schema.Int),
+});
+export type NomiorAnarlogState = typeof NomiorAnarlogState.Type;
+
+export const NomiorConnectorsListResult = Schema.Struct({
+  accounts: Schema.Array(NomiorConnectorAccount),
+  google: NomiorGoogleClientState,
+  anarlog: NomiorAnarlogState,
+  /**
+   * False when the client is talking to a server on another machine. The OAuth
+   * flow binds a loopback listener on the *server's* host, so a remote browser
+   * cannot complete it; the panel says so instead of opening a URL that will
+   * hang.
+   */
+  canStartLocalOAuth: Schema.Boolean,
+});
+export type NomiorConnectorsListResult = typeof NomiorConnectorsListResult.Type;
+
+export const NomiorGoogleClientIdSetInput = Schema.Struct({
+  /** Empty string clears it, which is how the operator revokes the whole flow. */
+  clientId: Schema.String,
+});
+export type NomiorGoogleClientIdSetInput = typeof NomiorGoogleClientIdSetInput.Type;
+
+export const NomiorConnectorConnectInput = Schema.Struct({
+  kind: NomiorConnectorKind,
+});
+export type NomiorConnectorConnectInput = typeof NomiorConnectorConnectInput.Type;
+
+/**
+ * The URL to open, when there is one. The server has already started listening
+ * for the redirect, so the client's only job is to open this and then re-list.
+ *
+ * Null means the connector is already connected and no browser step exists:
+ * Anarlog is a local store this machine either has or does not, so connecting
+ * it records the detected path rather than sending anyone to a consent screen.
+ */
+export const NomiorConnectorConnectResult = Schema.Struct({
+  authorizationUrl: Schema.NullOr(Schema.String),
+});
+export type NomiorConnectorConnectResult = typeof NomiorConnectorConnectResult.Type;
+
+export const NomiorConnectorAccountInput = Schema.Struct({
+  accountId: TrimmedNonEmptyString,
+});
+export type NomiorConnectorAccountInput = typeof NomiorConnectorAccountInput.Type;
+
+export const NomiorConnectorSyncResult = Schema.Struct({
+  /** Sources written or refreshed by this run, so the panel can say what changed. */
+  ingested: NonNegativeInt,
+});
+export type NomiorConnectorSyncResult = typeof NomiorConnectorSyncResult.Type;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

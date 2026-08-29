@@ -13,6 +13,9 @@ import { createContext, useContext } from "react";
 import type {
   CalendarAccount,
   CalendarEventItem,
+  ConnectorKind,
+  ConnectorsOverview,
+  ContextSnippet,
   MeetingDetail,
   MeetingItem,
   MemoryCandidate,
@@ -20,7 +23,6 @@ import type {
   ProviderInstanceItem,
   ReviewJob,
   SchedulerState,
-  ContextSnippet,
 } from "./types";
 
 export interface NomiorDataPort {
@@ -59,6 +61,19 @@ export interface NomiorDataPort {
    */
   listMeetings(): Promise<readonly MeetingItem[]>;
   getMeeting(meetingId: string): Promise<MeetingDetail>;
+
+  /** Connector accounts plus everything the page needs to offer a Connect. */
+  listConnectors(): Promise<ConnectorsOverview>;
+  /** Empty string clears the id, which disables the Google flow entirely. */
+  setGoogleClientId(clientId: string): Promise<void>;
+  /**
+   * Resolves to the authorization URL the client must open, or null when the
+   * connector needs no browser step (Anarlog is a local store, not a sign-in).
+   */
+  connectConnector(kind: ConnectorKind): Promise<string | null>;
+  disconnectConnector(accountId: string): Promise<void>;
+  /** Resolves to the number of sources this run wrote or refreshed. */
+  syncConnector(accountId: string): Promise<number>;
 
   listInstances(): Promise<readonly ProviderInstanceItem[]>;
   setInstancePinned(id: string, pinned: boolean): Promise<void>;

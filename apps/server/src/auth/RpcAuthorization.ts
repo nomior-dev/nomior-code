@@ -141,6 +141,14 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.nomiorCalendarEventsList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorMeetingsList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorMeetingGet]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorConnectorsList]: AuthOrchestrationReadScope,
+  // Connecting, disconnecting and setting the client id change what this
+  // environment reaches on the operator's behalf, so they take the operate
+  // scope a read of the same surface does not.
+  [WS_METHODS.nomiorGoogleClientIdSet]: AuthOrchestrationOperateScope,
+  [WS_METHODS.nomiorConnectorConnect]: AuthOrchestrationOperateScope,
+  [WS_METHODS.nomiorConnectorDisconnect]: AuthOrchestrationOperateScope,
+  [WS_METHODS.nomiorConnectorSync]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorInstancesList]: AuthOrchestrationReadScope,
   [WS_METHODS.nomiorInstanceSetPinned]: AuthOrchestrationOperateScope,
   [WS_METHODS.nomiorSchedulerGetState]: AuthOrchestrationReadScope,

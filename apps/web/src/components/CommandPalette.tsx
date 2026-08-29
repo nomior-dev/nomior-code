@@ -48,6 +48,7 @@ import {
   SquarePenIcon,
   TextSearchIcon,
   LayersIcon,
+  PlugZapIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -1636,6 +1637,17 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
+
+  actionItems.push({
+    kind: "action",
+    value: "action:nomior-connectors",
+    searchTerms: ["nomior", "connectors", "google", "calendar", "gmail", "anarlog", "oauth"],
+    title: "Open connectors",
+    icon: <PlugZapIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      await navigate({ to: "/settings/connectors" });
+    },
+  });
 
   actionItems.push({
     kind: "action",

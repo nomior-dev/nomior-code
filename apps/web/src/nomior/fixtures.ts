@@ -10,12 +10,19 @@
  * manual-review requests, memory decisions, pins and the advisory toggle stick
  * until reload.
  *
- * Meetings are the exception: the seed scenario has no meetings section yet, so
- * they are hand-written in `./fixtures.meetings` and resolved here the same way.
+ * Meetings and connectors are the exceptions: the seed scenario carries
+ * neither, so they are hand-written in `./fixtures.meetings` and
+ * `./fixtures.connectors` and resolved here the same way.
  *
  * @module nomior/fixtures
  */
 import { applyCandidateResolution } from "./contextMemory.logic";
+import {
+  ANARLOG_FOUND,
+  GOOGLE_CLIENT_CONFIGURED,
+  GOOGLE_CLIENT_UNCONFIGURED,
+  connectorAccountScenarios,
+} from "./fixtures.connectors";
 import { generatedFixtures } from "./fixtures.generated";
 import { meetingScenarios } from "./fixtures.meetings";
 import { applyPin } from "./instances.logic";
@@ -23,7 +30,9 @@ import type { NomiorDataPort } from "./port";
 import type {
   CalendarAccount,
   CalendarEventItem,
+  ConnectorAccountItem,
   ContextSnippet,
+  GoogleClientState,
   MeetingDetail,
   MemoryCandidate,
   ProviderInstanceItem,
@@ -154,6 +163,18 @@ function meetingDetail(now: Date, scenario: (typeof meetingScenarios)[number]): 
   };
 }
 
+function connectorAccounts(now: Date): ConnectorAccountItem[] {
+  return connectorAccountScenarios.map((account) => ({
+    id: account.id,
+    kind: account.kind,
+    displayName: account.displayName,
+    status: account.status,
+    lastSyncedAt:
+      account.lastSyncedAgoHours === null ? null : hoursAgo(now, account.lastSyncedAgoHours),
+    detail: account.detail,
+  }));
+}
+
 function instances(): ProviderInstanceItem[] {
   return generatedFixtures.instances.map((instance) => ({
     id: instance.id,
@@ -182,6 +203,8 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
   const meetings = new Map(
     meetingScenarios.map((scenario) => [scenario.id, meetingDetail(now, scenario)] as const),
   );
+  let accounts: readonly ConnectorAccountItem[] = connectorAccounts(now);
+  let google: GoogleClientState = GOOGLE_CLIENT_CONFIGURED;
 
   return {
     isFixture: true,
@@ -222,6 +245,60 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
       return detail === undefined
         ? Promise.reject(new Error(`No meeting ${meetingId}.`))
         : Promise.resolve(detail);
+    },
+
+    listConnectors: () =>
+      Promise.resolve({
+        accounts,
+        google,
+        anarlog: ANARLOG_FOUND,
+        // The fixture port is the browser's own sample data, so nothing about
+        // it is remote; the remote copy is exercised by the panel tests.
+        canStartLocalOAuth: true,
+      }),
+    setGoogleClientId: (clientId) => {
+      const trimmed = clientId.trim();
+      // Only the hint is ever kept, here as on the server: the panel has no
+      // way to render a full client id because it is never handed one.
+      google =
+        trimmed.length === 0
+          ? GOOGLE_CLIENT_UNCONFIGURED
+          : { configured: true, clientIdHint: trimmed.slice(-4) };
+      return Promise.resolve();
+    },
+    // Sample data has no OAuth server and no machine to read a store on.
+    // Resolving a fake URL would send the user to an address that does not
+    // exist, so the fixture fails the way the real port fails.
+    connectConnector: () =>
+      Promise.reject(
+        new Error("Sample data can't connect an account. Pair an environment and try again."),
+      ),
+    disconnectConnector: (accountId) => {
+      accounts = accounts.filter((account) => account.id !== accountId);
+      return Promise.resolve();
+    },
+    syncConnector: (accountId) => {
+      const account = accounts.find((entry) => entry.id === accountId);
+      if (account === undefined) return Promise.reject(new Error(`No connector ${accountId}.`));
+      if (account.status === "revoked") {
+        return Promise.reject(
+          new Error("Access was revoked for this account. Connect it again to restore it."),
+        );
+      }
+      // A failed sync is the transient one, so a retry both clears the status
+      // and has something to show for itself.
+      const ingested = account.status === "error" ? 3 : 0;
+      accounts = accounts.map((entry) =>
+        entry.id === accountId
+          ? {
+              ...entry,
+              status: "connected",
+              detail: null,
+              lastSyncedAt: new Date().toISOString(),
+            }
+          : entry,
+      );
+      return Promise.resolve(ingested);
     },
 
     listInstances: () => Promise.resolve(providerInstances),

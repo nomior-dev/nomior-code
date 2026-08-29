@@ -183,3 +183,53 @@ export interface SchedulerState {
   /** Advisory mode: the scheduler suggests but never switches on its own. */
   readonly advisoryMode: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Connectors
+// ---------------------------------------------------------------------------
+
+export type ConnectorKind = "googleCalendar" | "gmail" | "anarlog";
+
+/** `error` may clear on retry; `revoked` needs the account connected again. */
+export type ConnectorStatus = "connected" | "error" | "revoked";
+
+export interface ConnectorAccountItem {
+  readonly id: string;
+  readonly kind: ConnectorKind;
+  readonly displayName: string;
+  readonly status: ConnectorStatus;
+  /** Null until a first sync finishes, which the panel renders as "never". */
+  readonly lastSyncedAt: string | null;
+  /** Only on `error`/`revoked`, already redacted server-side. */
+  readonly detail: string | null;
+}
+
+export interface GoogleClientState {
+  readonly configured: boolean;
+  /** Last four characters, enough to tell two ids apart. */
+  readonly clientIdHint: string | null;
+}
+
+/**
+ * `unsupportedSchema` is separate from `notFound` on purpose: the reader pins a
+ * schema ceiling, so a newer Anarlog is detected-and-refused rather than absent.
+ */
+export type AnarlogDetection = "found" | "notFound" | "unsupportedSchema";
+
+export interface AnarlogState {
+  readonly detection: AnarlogDetection;
+  readonly storePath: string | null;
+  readonly schemaVersion: number | null;
+}
+
+export interface ConnectorsOverview {
+  readonly accounts: readonly ConnectorAccountItem[];
+  readonly google: GoogleClientState;
+  readonly anarlog: AnarlogState;
+  /**
+   * False when this client is not on the server's machine. The OAuth redirect
+   * lands on a loopback listener bound on the *server's* host, so a remote
+   * browser cannot finish the flow.
+   */
+  readonly canStartLocalOAuth: boolean;
+}

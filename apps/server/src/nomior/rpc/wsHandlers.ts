@@ -13,13 +13,19 @@ import * as Effect from "effect/Effect";
 
 import type { ServerProvider } from "@t3tools/contracts";
 import { ConnectorAccountStore } from "../connectors/ConnectorAccountStore.ts";
+import { ConnectorCursorStore } from "../connectors/ConnectorCursorStore.ts";
+import { ConnectorSyncRunStore } from "../connectors/ConnectorSyncRunStore.ts";
 import { CalendarEventStore } from "../connectors/calendar/CalendarEventStore.ts";
+import { GoogleClientIdStore } from "../connectors/google/GoogleClientIdStore.ts";
+import { GoogleTokenVault } from "../connectors/google/GoogleTokenVault.ts";
+import { GoogleTokenPort } from "../connectors/google/GooglePorts.ts";
 import { ContextRetrievalPort } from "../context/RetrievalPort.ts";
 import { MeetingStore } from "../meetings/MeetingStore.ts";
 import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import { RateLimitObserver } from "../scheduler/RateLimitObserver.ts";
 import { SchedulerPreferences } from "../scheduler/SchedulerPreferences.ts";
 import { ReviewJobStore } from "../review/ReviewJobStore.ts";
+import * as connectorHandlers from "./connectorHandlers.ts";
 import * as contextHandlers from "./contextHandlers.ts";
 import * as meetingHandlers from "./meetingHandlers.ts";
 import * as panelHandlers from "./panelHandlers.ts";
@@ -37,11 +43,19 @@ export interface NomiorPanelHandlerDeps {
   ) => Effect.Effect<A, E | EnvironmentAuthorizationError, R>;
   /** Provider snapshots live in the upstream registry, not in a Nomior service. */
   readonly listProviders: Effect.Effect<ReadonlyArray<ServerProvider>>;
+  /**
+   * Whether this connection's client runs on the server's own machine. Fixed
+   * for the life of the socket, because the peer it was opened from is. Only
+   * the connectors panel reads it: Google's loopback redirect lands on the
+   * server's host, so a remote client can never complete the flow.
+   */
+  readonly canStartLocalOAuth: boolean;
 }
 
 export const makeNomiorPanelHandlers = ({
   observeRpcEffect,
   listProviders,
+  canStartLocalOAuth,
 }: NomiorPanelHandlerDeps) => ({
   [WS_METHODS.nomiorReviewJobsList]: () =>
     observeRpcEffect(
@@ -119,6 +133,77 @@ export const makeNomiorPanelHandlers = ({
       }),
     ),
 
+  [WS_METHODS.nomiorConnectorsList]: () =>
+    observeRpcEffect(
+      WS_METHODS.nomiorConnectorsList,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.listConnectors({
+          accounts: yield* ConnectorAccountStore,
+          syncRuns: yield* ConnectorSyncRunStore,
+          clientIds: yield* GoogleClientIdStore,
+          canStartLocalOAuth,
+        });
+      }),
+    ),
+
+  [WS_METHODS.nomiorGoogleClientIdSet]: (input: { readonly clientId: string }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorGoogleClientIdSet,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.setGoogleClientId(yield* GoogleClientIdStore, input);
+      }),
+      // Deliberately no trace attribute: the value is the one thing that must
+      // not be recorded anywhere.
+    ),
+
+  [WS_METHODS.nomiorConnectorConnect]: (input: {
+    readonly kind: "googleCalendar" | "gmail" | "anarlog";
+  }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorConnectorConnect,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.connectConnector(
+          {
+            accounts: yield* ConnectorAccountStore,
+            clientIds: yield* GoogleClientIdStore,
+            canStartLocalOAuth,
+          },
+          input,
+        );
+      }),
+      { "nomior.connector.kind": input.kind },
+    ),
+
+  [WS_METHODS.nomiorConnectorDisconnect]: (input: { readonly accountId: string }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorConnectorDisconnect,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.disconnectConnector(
+          {
+            accounts: yield* ConnectorAccountStore,
+            cursors: yield* ConnectorCursorStore,
+            syncRuns: yield* ConnectorSyncRunStore,
+            vault: yield* GoogleTokenVault,
+          },
+          input,
+        );
+      }),
+    ),
+
+  [WS_METHODS.nomiorConnectorSync]: (input: { readonly accountId: string }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorConnectorSync,
+      Effect.gen(function* () {
+        return yield* connectorHandlers.syncConnector(
+          {
+            accounts: yield* ConnectorAccountStore,
+            clientIds: yield* GoogleClientIdStore,
+          },
+          input,
+        );
+      }),
+    ),
+
   [WS_METHODS.nomiorInstancesList]: () =>
     observeRpcEffect(
       WS_METHODS.nomiorInstancesList,
@@ -162,7 +247,12 @@ export const makeNomiorPanelHandlers = ({
 export type NomiorPanelHandlerServices =
   | CalendarEventStore
   | ConnectorAccountStore
+  | ConnectorCursorStore
+  | ConnectorSyncRunStore
   | ContextRetrievalPort
+  | GoogleClientIdStore
+  | GoogleTokenPort
+  | GoogleTokenVault
   | MeetingStore
   | MemoryCandidateStore
   | RateLimitObserver

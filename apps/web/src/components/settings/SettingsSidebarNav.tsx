@@ -16,6 +16,7 @@ import {
   LayersIcon,
   Link2Icon,
   PaletteIcon,
+  PlugZapIcon,
   SearchIcon,
   Settings2Icon,
   XIcon,
@@ -54,6 +55,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/integrations": BlocksIcon,
   "/settings/source-control": GitBranchIcon,
   "/settings/connections": Link2Icon,
+  "/settings/connectors": PlugZapIcon,
   "/settings/instances": LayersIcon,
   "/settings/archived": ArchiveIcon,
 };
