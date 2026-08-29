@@ -142,6 +142,19 @@ export function opensAdvancedByDefault(google: GoogleClientState): boolean {
   return google.source === "none";
 }
 
+/**
+ * Whether the setup fields are open, given whatever the user has said about it.
+ *
+ * `null` is "has not said", and follows the data — including the data that
+ * arrives after the first paint. The page renders sample state while it learns
+ * which environment it is talking to, and sample state has a client id, so a
+ * section that decided once at mount would stay shut in the one case it exists
+ * to open for.
+ */
+export function advancedSectionOpen(choice: boolean | null, google: GoogleClientState): boolean {
+  return choice ?? opensAdvancedByDefault(google);
+}
+
 export type ClientIdSaveIntent = "save" | "clear" | "unchanged";
 
 /**

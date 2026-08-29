@@ -21,6 +21,7 @@ import { Spinner } from "../components/ui/spinner";
 import { readLocalApi } from "../localApi";
 import {
   accountsSignature,
+  advancedSectionOpen,
   anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
@@ -31,7 +32,6 @@ import {
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
-  opensAdvancedByDefault,
   orderAccounts,
   showsDetail,
   statusPresentation,
@@ -216,14 +216,16 @@ export function AdvancedConnectorSection({
   onSaveClientId: (value: string) => void;
   onConnect: (kind: ConnectorKind) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(() => opensAdvancedByDefault(overview.google));
+  // null until the user opens or closes it themselves; see advancedSectionOpen.
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const isOpen = advancedSectionOpen(choice, overview.google);
   const [draft, setDraft] = useState("");
   const intent = clientIdSaveIntent(draft, overview.google);
   const isSaving = state.pendingScope === CLIENT_ID_SCOPE;
   const notice = noticeFor(state, CLIENT_ID_SCOPE);
 
   return (
-    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+    <Collapsible onOpenChange={setChoice} open={isOpen}>
       <CollapsibleTrigger
         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         render={<button type="button" />}

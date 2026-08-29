@@ -20,6 +20,7 @@ import {
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
+  advancedSectionOpen,
   opensAdvancedByDefault,
   orderAccounts,
   showsDetail,
@@ -131,6 +132,15 @@ describe("google client id", () => {
     expect(opensAdvancedByDefault(GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
     expect(opensAdvancedByDefault(GOOGLE_CLIENT_CONFIGURED)).toBe(false);
     expect(opensAdvancedByDefault(GOOGLE_CLIENT_OPERATOR)).toBe(false);
+  });
+
+  it("follows the data until the user says otherwise", () => {
+    // Sample data has a client id and paints first, so a section that decided
+    // at mount would stay shut once the environment answers with none.
+    expect(advancedSectionOpen(null, GOOGLE_CLIENT_CONFIGURED)).toBe(false);
+    expect(advancedSectionOpen(null, GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
+    expect(advancedSectionOpen(false, GOOGLE_CLIENT_UNCONFIGURED)).toBe(false);
+    expect(advancedSectionOpen(true, GOOGLE_CLIENT_CONFIGURED)).toBe(true);
   });
 });
 
