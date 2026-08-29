@@ -3,13 +3,18 @@ import { describe, expect, it } from "vite-plus/test";
 import { createFixtureNomiorPort } from "./fixtures";
 import {
   canRequestManualReview,
+  filterReviewJobs,
   groupReviewJobs,
   isReviewSort,
+  projectFilterLabel,
   pullRequestUrl,
+  resolveProjectSelection,
   REVIEW_COLUMNS,
   REVIEW_SORTS,
+  reviewProjectOptions,
   reviewStatusLabel,
   sortReviewJobs,
+  toggleProject,
 } from "./reviewBoard.logic";
 import type { ReviewJob, ReviewJobDetail } from "./types";
 
@@ -104,6 +109,66 @@ describe("sortReviewJobs", () => {
     const before = jobs.map((entry) => entry.id);
     sortReviewJobs(jobs, "oldest");
     expect(jobs.map((entry) => entry.id)).toEqual(before);
+  });
+});
+
+describe("project filter", () => {
+  const jobs = [
+    job({ id: "a", repo: "nomior-dev/nomior-code" }),
+    job({ id: "b", repo: "nomior-dev/nomior-code" }),
+    job({ id: "c", repo: "nomior-dev/nomior-music" }),
+  ];
+
+  it("offers each project once, counted, named by the part you read", () => {
+    expect(reviewProjectOptions(jobs)).toEqual([
+      { repo: "nomior-dev/nomior-code", label: "nomior-code", count: 2 },
+      { repo: "nomior-dev/nomior-music", label: "nomior-music", count: 1 },
+    ]);
+  });
+
+  it("keeps the owner when two projects would read as the same name", () => {
+    const options = reviewProjectOptions([
+      job({ id: "a", repo: "nomior-dev/nomior-code" }),
+      job({ id: "b", repo: "pingdotgg/nomior-code" }),
+      job({ id: "c", repo: "nomior-dev/nomior-music" }),
+    ]);
+    expect(options.map((option) => option.label)).toEqual([
+      "nomior-dev/nomior-code",
+      "nomior-music",
+      "pingdotgg/nomior-code",
+    ]);
+  });
+
+  it("shows every project until one is picked", () => {
+    expect(filterReviewJobs(jobs, [])).toEqual(jobs);
+    expect(filterReviewJobs(jobs, ["nomior-dev/nomior-music"]).map((entry) => entry.id)).toEqual([
+      "c",
+    ]);
+  });
+
+  it("drops a stored project the board no longer has, rather than emptying it", () => {
+    const options = reviewProjectOptions(jobs);
+    const selection = resolveProjectSelection(
+      ["nomior-dev/nomior-code", "nomior-dev/nomior-invest"],
+      options,
+    );
+    expect(selection).toEqual(["nomior-dev/nomior-code"]);
+    expect(resolveProjectSelection(["nomior-dev/nomior-invest"], options)).toEqual([]);
+    expect(filterReviewJobs(jobs, resolveProjectSelection(["gone/away"], options))).toEqual(jobs);
+  });
+
+  it("adds and removes one project at a time", () => {
+    expect(toggleProject([], "a")).toEqual(["a"]);
+    expect(toggleProject(["a", "b"], "a")).toEqual(["b"]);
+  });
+
+  it("says what it is filtering to", () => {
+    const options = reviewProjectOptions(jobs);
+    expect(projectFilterLabel([], options)).toBe("All projects");
+    expect(projectFilterLabel(["nomior-dev/nomior-code"], options)).toBe("nomior-code");
+    expect(projectFilterLabel(["nomior-dev/nomior-code", "nomior-dev/nomior-music"], options)).toBe(
+      "2 projects",
+    );
   });
 });
 

@@ -1,10 +1,24 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDownWideNarrowIcon, GitPullRequestIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import * as Schema from "effect/Schema";
+import {
+  ArrowDownWideNarrowIcon,
+  ChevronDownIcon,
+  GitPullRequestIcon,
+  ListFilterIcon,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 import { cn } from "../lib/utils";
 import { formatRelativeTimeLabel } from "../timestampFormat";
+import { Button } from "../components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
+import {
+  Menu,
+  MenuCheckboxItem,
+  MenuPopup,
+  MenuSeparator,
+  MenuTrigger,
+} from "../components/ui/menu";
 import {
   Select,
   SelectItem,
@@ -13,14 +27,21 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { fixtureNomiorPort } from "./fixtures";
 import { useNomiorPort } from "./port";
 import { PortErrorState } from "./PortErrorState";
 import {
+  filterReviewJobs,
   groupReviewJobs,
   isReviewSort,
+  projectFilterLabel,
+  resolveProjectSelection,
   REVIEW_COLUMNS,
   REVIEW_SORTS,
+  reviewProjectOptions,
+  toggleProject,
+  type ReviewProjectOption,
   type ReviewSortId,
 } from "./reviewBoard.logic";
 import type { ReviewJob } from "./types";
@@ -67,9 +88,11 @@ function ReviewColumnSkeleton() {
 
 /** The board's one ordering control, over every column at once. */
 function ReviewSortSelect({
+  className,
   onChange,
   value,
 }: {
+  className?: string;
   onChange: (sort: ReviewSortId) => void;
   value: ReviewSortId;
 }) {
@@ -81,7 +104,7 @@ function ReviewSortSelect({
       }}
       value={value}
     >
-      <SelectTrigger aria-label="Sort cards" size="xs" variant="ghost">
+      <SelectTrigger aria-label="Sort cards" className={className} size="xs" variant="ghost">
         <ArrowDownWideNarrowIcon className="size-3.5" />
         <SelectValue />
       </SelectTrigger>
@@ -96,11 +119,77 @@ function ReviewSortSelect({
   );
 }
 
+/**
+ * Which projects the board shows.
+ *
+ * Kept across visits: you open a card, come back, and the two projects you
+ * were working through are still the two the board shows.
+ */
+const PROJECT_FILTER_KEY = "nomior:review-board-projects:v1";
+const PROJECT_FILTER_SCHEMA = Schema.Array(Schema.String);
+const ALL_PROJECTS: readonly string[] = [];
+
+function ReviewProjectFilter({
+  onChange,
+  options,
+  selected,
+}: {
+  onChange: (selected: readonly string[]) => void;
+  options: readonly ReviewProjectOption[];
+  selected: readonly string[];
+}) {
+  return (
+    <Menu>
+      <MenuTrigger className="text-muted-foreground" render={<Button size="xs" variant="ghost" />}>
+        <ListFilterIcon className="size-3.5" />
+        {projectFilterLabel(selected, options)}
+        <ChevronDownIcon className="size-3 opacity-50" />
+      </MenuTrigger>
+      <MenuPopup align="start" className="w-64">
+        <MenuCheckboxItem
+          checked={selected.length === 0}
+          onCheckedChange={() => onChange(ALL_PROJECTS)}
+        >
+          All projects
+        </MenuCheckboxItem>
+        <MenuSeparator />
+        {options.map((option) => (
+          <MenuCheckboxItem
+            checked={selected.includes(option.repo)}
+            key={option.repo}
+            onCheckedChange={() => onChange(toggleProject(selected, option.repo))}
+          >
+            <span className="flex w-full min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {option.count}
+              </span>
+            </span>
+          </MenuCheckboxItem>
+        ))}
+      </MenuPopup>
+    </Menu>
+  );
+}
+
 export function ReviewBoardPanel() {
   const port = useNomiorPort(fixtureNomiorPort);
   const loadJobs = useCallback(() => port.listReviewJobs(), [port]);
   const { data: jobs, error, isPending, reload } = usePortData(loadJobs);
   const [sort, setSort] = useState<ReviewSortId>("recent");
+  const [storedProjects, setStoredProjects] = useLocalStorage(
+    PROJECT_FILTER_KEY,
+    ALL_PROJECTS,
+    PROJECT_FILTER_SCHEMA,
+  );
+
+  const options = useMemo(() => reviewProjectOptions(jobs ?? []), [jobs]);
+  // Drive the control from what the board can actually show, so a stored
+  // project whose reviews have all landed leaves the filter quietly.
+  const selected = useMemo(
+    () => resolveProjectSelection(storedProjects, options),
+    [storedProjects, options],
+  );
 
   if (error !== null) {
     return (
@@ -124,12 +213,17 @@ export function ReviewBoardPanel() {
     );
   }
 
-  const grouped = jobs === null ? null : groupReviewJobs(jobs, sort);
+  const grouped = jobs === null ? null : groupReviewJobs(filterReviewJobs(jobs, selected), sort);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <div className="flex items-center justify-end px-5 sm:px-6">
-        <ReviewSortSelect onChange={setSort} value={sort} />
+      {/* One project is not a choice, so the filter appears only once there is
+          something to choose between. */}
+      <div className="flex items-center gap-1 px-5 sm:px-6">
+        {options.length > 1 ? (
+          <ReviewProjectFilter onChange={setStoredProjects} options={options} selected={selected} />
+        ) : null}
+        <ReviewSortSelect className="ms-auto" onChange={setSort} value={sort} />
       </div>
 
       {/* Each column scrolls on its own under a header that stays put, so a long

@@ -93,6 +93,90 @@ export function groupReviewJobs(
   return grouped;
 }
 
+export interface ReviewProjectOption {
+  readonly repo: string;
+  /** What the filter calls the project. */
+  readonly label: string;
+  /** Open reviews in it, so the menu says what picking it is worth. */
+  readonly count: number;
+}
+
+/**
+ * The projects the board is currently showing, with their card counts.
+ *
+ * Derived from the jobs rather than from the list of connected repositories: a
+ * filter that offers a project with nothing in it is a filter that can empty
+ * the board.
+ *
+ * The owner is dropped — every card shows the same one — unless two projects
+ * share a name, and then both keep theirs rather than reading as one project
+ * twice.
+ */
+export function reviewProjectOptions(jobs: readonly ReviewJob[]): readonly ReviewProjectOption[] {
+  const counts = new Map<string, number>();
+  for (const job of jobs) counts.set(job.repo, (counts.get(job.repo) ?? 0) + 1);
+
+  const shortNames = new Map<string, number>();
+  for (const repo of counts.keys()) {
+    const short = shortProjectName(repo);
+    shortNames.set(short, (shortNames.get(short) ?? 0) + 1);
+  }
+
+  return [...counts]
+    .map(([repo, count]) => {
+      const short = shortProjectName(repo);
+      return { repo, label: (shortNames.get(short) ?? 0) > 1 ? repo : short, count };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function shortProjectName(repo: string): string {
+  return repo.slice(repo.lastIndexOf("/") + 1) || repo;
+}
+
+/**
+ * The selection the board can actually act on.
+ *
+ * A stored selection outlives the cards it named: pick two projects, let their
+ * pull requests merge, and the stored repos are gone from the board. Dropping
+ * what is no longer there — and treating what is left of nothing as "all" —
+ * is what keeps the board from going blank behind a filter nobody can see.
+ */
+export function resolveProjectSelection(
+  selected: readonly string[],
+  options: readonly ReviewProjectOption[],
+): readonly string[] {
+  const available = new Set(options.map((option) => option.repo));
+  return selected.filter((repo) => available.has(repo));
+}
+
+/** An empty selection is every project, which is also the board's default. */
+export function filterReviewJobs(
+  jobs: readonly ReviewJob[],
+  selected: readonly string[],
+): readonly ReviewJob[] {
+  if (selected.length === 0) return jobs;
+  const chosen = new Set(selected);
+  return jobs.filter((job) => chosen.has(job.repo));
+}
+
+export function toggleProject(selected: readonly string[], repo: string): readonly string[] {
+  return selected.includes(repo) ? selected.filter((entry) => entry !== repo) : [...selected, repo];
+}
+
+/** What the filter's own control says it is doing. */
+export function projectFilterLabel(
+  selected: readonly string[],
+  options: readonly ReviewProjectOption[],
+): string {
+  if (selected.length === 0) return "All projects";
+  if (selected.length === 1) {
+    const only = options.find((option) => option.repo === selected[0]);
+    if (only !== undefined) return only.label;
+  }
+  return `${selected.length} projects`;
+}
+
 /**
  * The pull request on the forge.
  *
