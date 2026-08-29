@@ -27,7 +27,7 @@ export interface ReviewColumn {
 export const REVIEW_COLUMNS: readonly ReviewColumn[] = [
   { id: "queue", title: "Queue", dotClass: "bg-muted-foreground/40" },
   { id: "reviewing", title: "Reviewing", dotClass: "bg-info" },
-  { id: "waiting-external", title: "Waiting external", dotClass: "bg-warning" },
+  { id: "waiting-external", title: "Needs you", dotClass: "bg-warning" },
   { id: "approved", title: "Approved", dotClass: "bg-success" },
   { id: "not-approved", title: "Not approved", dotClass: "bg-destructive" },
 ];

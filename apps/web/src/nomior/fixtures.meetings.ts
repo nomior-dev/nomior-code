@@ -56,9 +56,9 @@ export const meetingScenarios: readonly MeetingScenario[] = [
     notes: [
       "## Decisions",
       "",
-      "- Board columns mirror the engine's states one to one: Queue, Reviewing, Waiting external, Approved, Not approved.",
+      "- Board columns are Queue, Reviewing, Needs you, Approved, Not approved. Four mirror the engine's states; the hand-off is named for who is blocking.",
       "- **Approved** and **Not approved** stay separate columns. Collapsing them into a single Done loses the verdict, which is the thing people open the board for.",
-      "- Waiting external keeps its own column. A job blocked on a person is not a job in flight.",
+      "- **Needs you** keeps its own column, and should be close to empty. A job blocked on a person is not a job in flight.",
       "",
       "## Open",
       "",

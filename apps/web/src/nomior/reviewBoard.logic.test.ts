@@ -174,7 +174,7 @@ describe("project filter", () => {
 
 describe("naming a job's status and pull request", () => {
   it("uses the board's own column titles", () => {
-    expect(reviewStatusLabel("waiting-external")).toBe("Waiting external");
+    expect(reviewStatusLabel("waiting-external")).toBe("Needs you");
     expect(reviewStatusLabel("queue")).toBe("Queue");
   });
 

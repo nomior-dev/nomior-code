@@ -322,13 +322,13 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
       },
       {
         speaker: "Dasha",
-        text: "I am blocked on the review board copy until the columns are final. If Waiting external stays, the card needs a line naming the human who owns it.",
+        text: "I am blocked on the review board copy until the columns are final. Waiting external reads like we are waiting on an API, and the thing we are waiting on is a person.",
         tsStart: 48,
         tsEnd: 70,
       },
       {
         speaker: "Ivan",
-        text: "Columns are final: Queue, Reviewing, Waiting external, Approved, Not approved. Same names as the engine states, so nobody has to translate between the board and the code.",
+        text: "Then it is Needs you, and the card names the human who owns the next step. Four columns keep the engine state names; that one is named for who is blocking, because it is the only column a person has to act on.",
         tsStart: 70,
         tsEnd: 94,
       },
@@ -340,13 +340,13 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
       },
       {
         section: "Board",
-        text: "Board columns are frozen to the engine states. Waiting external cards always name a human owner.",
+        text: "Board columns are frozen. Four carry the engine state names; the hand-off is Needs you, it names a human owner, and it stays rare by design.",
       },
     ],
     decisions: [
       {
         statement:
-          "The review board's columns mirror the engine's states one to one: Queue, Reviewing, Waiting external, Approved, Not approved.",
+          "The review board's columns are Queue, Reviewing, Needs you, Approved, Not approved: engine state names everywhere except the human hand-off, which is named for who is blocking.",
         turnIndex: 3,
       },
     ],
@@ -359,7 +359,7 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
         turnIndex: 1,
       },
       {
-        description: "Write the Waiting external card copy, including the owner line",
+        description: "Write the Needs you card copy, including the owner line",
         assignee: "Dasha",
         dueAt: "2026-08-26T17:00:00.000Z",
         status: "open",
@@ -879,8 +879,8 @@ export const seedMemories: ReadonlyArray<SeedMemory> = [
     memoryId: "mem-502",
     capsule: "nomior-code",
     status: "candidate",
-    title: "Waiting external cards name an owner",
-    text: "Cards in the Waiting external column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
+    title: "Needs you cards name an owner",
+    text: "Cards in the Needs you column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
     capturedAt: "2026-08-28T13:20:00.000Z",
     sourceLabel: "Friday review — 2026-08-28",
     producer: "context-tool",

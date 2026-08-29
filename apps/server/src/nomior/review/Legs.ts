@@ -100,6 +100,7 @@ export const buildLegBrief = (config: ReviewLegConfig, input: LegBriefInput): st
       ' "runtimeEvidence": [{"kind": "tests-run|build-passed|typecheck-passed|live-probe|ci-green", "detail": "..."}],',
       ' "needsExternalReview": false}',
       "Report runtimeEvidence only for verification you actually performed.",
+      "Set needsExternalReview only when the call is not yours to make: the change turns on intent, a product tradeoff, or a rule this repo has never written down. Uncertainty is not escalation — if you can name the risk, it is a finding. Asking for a human while reporting a blocking finding is ignored, because the gate rules first.",
     ].join("\n"),
   );
 

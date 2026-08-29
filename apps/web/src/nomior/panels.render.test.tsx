@@ -32,14 +32,13 @@ import {
   TranscriptReader,
 } from "./MeetingsPanel";
 import { PortErrorState } from "./PortErrorState";
-import type { ConnectorsOverview } from "./types";
 import { ReviewBoardPanel, ReviewJobCard } from "./ReviewBoardPanel";
 import { ReviewJobReader } from "./ReviewJobPanel";
 
 describe("Nomior panels render standalone", () => {
   it("review board renders every column", () => {
     const markup = renderToStaticMarkup(<ReviewBoardPanel />);
-    for (const title of ["Queue", "Reviewing", "Waiting external", "Approved", "Not approved"]) {
+    for (const title of ["Queue", "Reviewing", "Needs you", "Approved", "Not approved"]) {
       expect(markup).toContain(title);
     }
   });

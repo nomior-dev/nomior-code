@@ -330,7 +330,7 @@ export const generatedFixtures = {
       sourceTitle: "Daily standup",
       sourceKind: "meeting",
       sourceDate: "2026-08-24",
-      excerpt: "Decision: The review board's columns mirror the engine's states one to one: Queue, Reviewing, Waiting external, Approved, Not approved.",
+      excerpt: "Decision: The review board's columns are Queue, Reviewing, Needs you, Approved, Not approved: engine state names everywhere except the human hand-off, which is named for who is blocking.",
       score: 0.95,
     },
     {
@@ -439,7 +439,7 @@ export const generatedFixtures = {
     },
     {
       id: "mem-502",
-      text: "Cards in the Waiting external column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
+      text: "Cards in the Needs you column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
       source: "Friday review — 2026-08-28",
       capturedAgoHours: 19.67,
     },

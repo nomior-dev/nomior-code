@@ -59,7 +59,7 @@ const FEATURES: readonly Feature[] = [
     title: ["A second model", "reads every diff"],
     copy: [
       "Each review leg runs on the instance and model you choose, against your repo's playbook — the Verify, Context and Bar sections you actually edit. The verdict gate that decides pass or fail is deterministic code, not a model's opinion, and nothing reaches your forge until you approve it.",
-      "Cards move across an in-app board — Queue, Reviewing, Waiting external, Approved, Not approved — carrying severity and evidence. Hand any card to a human in one action. Approved findings become memory candidates, so the same mistake does not ship twice.",
+      "Cards move across an in-app board — Queue, Reviewing, Needs you, Approved, Not approved — carrying severity and evidence. Hand any card to a human in one action. Approved findings become memory candidates, so the same mistake does not ship twice.",
     ],
     demo: {
       name: "review-board.gif",
