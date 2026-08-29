@@ -11,7 +11,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { NomiorSqlitePersistenceMemory } from "../persistence/Sqlite.ts";
+import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as InstanceScheduler from "./InstanceScheduler.ts";
 import * as RateLimitObserver from "./RateLimitObserver.ts";
 import type { NomiorSchedulerSettings, SchedulerDecision } from "./Schemas.ts";
@@ -30,7 +30,7 @@ const makeTestLayer = (settings?: Partial<NomiorSchedulerSettings>) =>
   InstanceScheduler.layer.pipe(
     Layer.provide(InstanceScheduler.InstanceSchedulerConfig.layerStatic(settings)),
     Layer.provideMerge(RateLimitObserver.layer),
-    Layer.provideMerge(NomiorSqlitePersistenceMemory),
+    Layer.provideMerge(SqlitePersistenceMemory),
     Layer.provideMerge(NodeServices.layer),
   );
 

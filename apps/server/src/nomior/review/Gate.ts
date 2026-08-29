@@ -53,6 +53,24 @@ const collectRuntimeEvidence = (
   legs.flatMap((leg) => (leg.outcome === "parsed" ? leg.report.runtimeEvidence : []));
 
 /**
+ * Whether any leg produced something the gate blocks on: a critical/high
+ * finding, or output it could not read.
+ *
+ * Exported because escalation (`needsExternalReview`) must not outrank it. A
+ * leg asking for a human has to lose to a leg reporting a blocker — otherwise
+ * a single flag in model output routes a critical finding past the gate and
+ * into a human resolution that never sees the finding. Callers deciding
+ * whether to escalate ask this first; it is the same pure severity test
+ * `evaluateGate` uses.
+ */
+export const hasBlockingFindings = (legs: ReadonlyArray<ParsedLegResult>): boolean =>
+  legs.some((leg) =>
+    leg.outcome === "unparseable"
+      ? true
+      : leg.report.findings.some((finding) => severityImpact(finding.severity) === "blocking"),
+  );
+
+/**
  * Evaluate the gate. Pure and deterministic: same input, same verdict.
  */
 export const evaluateGate = (input: GateInput): GateVerdict => {

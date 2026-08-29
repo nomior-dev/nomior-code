@@ -18,6 +18,33 @@ Our code lives in:
 
 TypeScript + Effect (`Context.Service`, `Layer`, `Effect.fn`, `Stream`), Effect Schema for every wire/stored shape, `.ts` extensions on relative imports, no barrel files, no `any`, colocated `*.test.ts`. Run `pnpm typecheck`, `pnpm lint`, `pnpm test` (or `vp run --filter <pkg> test`) before finishing.
 
+## Migrations
+
+**Nomior migrations NEVER go in the upstream registry.** There is exactly one
+Nomior migrator: `apps/server/src/nomior/persistence/Migrations.ts`. It runs its
+own numbered sequence out of `apps/server/src/nomior/persistence/Migrations/`
+and records progress in `nomior_sql_migrations`.
+
+Adding one: create `Migrations/<next id>_<Name>.ts` (gapless, ascending, unique
+name), append one entry to `nomiorMigrationEntries`, add a row to
+`STATE-INVENTORY.md`. That is the whole procedure — no upstream file changes.
+
+- Never add an entry to `apps/server/src/persistence/Migrations.ts` or a file to
+  `apps/server/src/persistence/Migrations/`. Upstream appends ids there daily;
+  a Nomior entry collides on both the filename and the registry slot at the
+  next sync, and `migrate-dev-db`'s slot check turns that into a hard failure
+  on every dev database that already applied our number.
+- Never stand up a second migrator with its own ledger table. Two ledgers means
+  two orderings and no single answer to "what schema does this database have".
+- DDL is `IF NOT EXISTS` throughout so a replay is a no-op; `Migrations.test.ts`
+  enforces gapless numbering and asserts that re-running every migration body
+  leaves `sqlite_master` byte-identical.
+- Wiring is already done: the shared sqlite setup layer runs
+  `runNomiorMigrations()` immediately after upstream's `runMigrations()`
+  (`apps/server/src/persistence/Layers/Sqlite.ts`), so production, the CLI, and
+  every test using `SqlitePersistenceMemory` get the same schema. That one line
+  is the fork's whole migration footprint in upstream code.
+
 ## Safety invariants
 
 - **Never read, store, or proxy provider credentials.** Multi-account = local profiles (`CLAUDE_CONFIG_DIR`/`CODEX_HOME`) that the user signed into themselves; the scheduler uses only rate-limit events the CLIs already emit.

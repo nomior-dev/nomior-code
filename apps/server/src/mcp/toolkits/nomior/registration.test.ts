@@ -4,6 +4,13 @@
  * so if an upstream sync reverts or moves the `Layer.mergeAll` that registers
  * the Nomior context toolkit beside the preview toolkit, this file fails by
  * name instead of the app silently losing the context tools.
+ *
+ * It also proves the toolkit's port is actually PROVIDED, not merely declared:
+ * a toolkit registered without `ContextRetrievalPort` builds fine and only
+ * fails when a tool is called, so the tool calls below go through the real
+ * broker on an in-memory database. `nomior/integration/McpContextToolkit.test.ts`
+ * carries the round-trip (ingest -> context_search -> context_get); this file
+ * stays about registration.
  */
 import { expect, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -12,7 +19,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { McpSchema, McpServer } from "effect/unstable/ai";
 import { HttpRouter } from "effect/unstable/http";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
 
+import { SqlitePersistenceMemory } from "../../../persistence/Layers/Sqlite.ts";
 import * as McpHttpServer from "../../McpHttpServer.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpSessionRegistry from "../../McpSessionRegistry.ts";
@@ -54,7 +63,9 @@ const McpSessionRegistryStub = Layer.succeed(
 );
 
 // The application's own MCP layer, with only its environment supplied. The
-// router is never served: registration is what is under test here.
+// router is never served: registration is what is under test here. SqlClient
+// is real (in-memory sqlite with the Nomior migrations) because the toolkit's
+// retrieval port is now the real context engine.
 const AppLayer = McpHttpServer.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -63,6 +74,20 @@ const AppLayer = McpHttpServer.layer.pipe(
       PreviewAutomationBroker.layer.pipe(Layer.provide(NodeServices.layer)),
     ),
   ),
+  // Merged, not just provided: the scope-authorization path reads the thread
+  // projection, so the tests below need to seed the row a real session has.
+  Layer.provideMerge(SqlitePersistenceMemory),
+  Layer.provide(NodeServices.layer),
+);
+
+/** The `projection_threads` row every thread created in the normal UI has. */
+const seedThreadProjection = Effect.flatMap(
+  SqlClient.SqlClient,
+  (sql) => sql`
+    INSERT OR IGNORE INTO projection_threads
+      (thread_id, project_id, title, created_at, updated_at)
+    VALUES (${invocation.threadId}, 'nomior', 'Seam', ${"2026-08-20T09:00:00.000Z"}, ${"2026-08-20T09:00:00.000Z"})
+  `,
 );
 
 it.layer(AppLayer)("McpHttpServer Nomior registration seam", (it) => {
@@ -93,8 +118,9 @@ it.layer(AppLayer)("McpHttpServer Nomior registration seam", (it) => {
     }),
   );
 
-  it.effect("serves fail-closed tool errors through the MCP call path while unwired", () =>
+  it.effect("reaches the real retrieval port through the MCP call path", () =>
     Effect.gen(function* () {
+      yield* seedThreadProjection;
       const server = yield* McpServer.McpServer;
       const result = yield* server
         .callTool({
@@ -105,10 +131,14 @@ it.layer(AppLayer)("McpHttpServer Nomior registration seam", (it) => {
           Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
           Effect.provideService(McpSchema.McpServerClient, client),
         );
-      expect(result.isError).toBe(true);
-      expect(result.content[0]).toMatchObject({
-        type: "text",
-        text: expect.stringContaining("context engine is unavailable"),
+      // An empty corpus, not an unavailable engine: the port is provided and
+      // ran a real query. `layerUnavailable` would have failed the call with
+      // "the context engine is unavailable".
+      expect(result.isError).toBe(false);
+      expect(result.structuredContent).toMatchObject({
+        scope: "project:nomior",
+        snippets: [],
+        totalMatches: 0,
       });
     }),
   );

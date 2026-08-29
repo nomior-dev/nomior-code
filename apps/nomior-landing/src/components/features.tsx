@@ -1,103 +1,116 @@
 import { DemoFigure } from "./demo-figure";
-import { Eyebrow, Reveal } from "./reveal";
+import { Eyebrow, Reveal, TitleLines } from "./reveal";
 
 interface Feature {
   readonly id: string;
   readonly eyebrow: string;
-  readonly title: string;
+  readonly title: readonly string[];
   readonly copy: readonly string[];
-  readonly demo?: { name: string; caption: string };
+  readonly demo?: { readonly name: string; readonly caption: string };
 }
 
 const FEATURES: readonly Feature[] = [
   {
     id: "context",
-    eyebrow: "Context without clutter",
-    title: "Ask the project, get evidence",
+    eyebrow: "Context broker",
+    title: ["Ask the project,", "get evidence"],
     copy: [
-      "Meetings, documents, threads and past reviews sit behind one search. Answers come back as snippets with a source, a date and an excerpt — on a hard token budget, so your agent's context stays lean.",
-      "The same broker is an MCP toolkit: any client you already use can call it. Four tools, one hot schema, no context tax.",
+      "Meetings, calendar events, the mail threads you opted in, past decisions and past reviews sit behind one search. Answers come back as ranked snippets with a source, a date and the excerpt they came from — on a hard token budget, so your agent's window stays lean.",
+      "The same broker is an MCP toolkit any client can call: four tools, one of them loaded and three deferred until used. Search never returns a raw transcript body; it returns ids you can drill into.",
     ],
     demo: {
       name: "cited-answer.gif",
       caption:
-        "A fork session asks about last week's decision; the broker answers with two cited snippets.",
+        "A session started from the app asks about last week's decision; the broker answers with two cited snippets and their dates.",
     },
   },
   {
     id: "meetings",
-    eyebrow: "Meetings into context",
-    title: "What was said becomes what is known",
+    eyebrow: "Meetings",
+    title: ["Bring your own", "recorder"],
     copy: [
-      "Recordings from Anarlog or Granola, calendar events and mail threads assemble into one meeting entity — transcript, notes and decisions linked from a unified multi-account calendar, recurring series grouped automatically.",
-      "Decisions extracted from meetings land in the same searchable context your agents read.",
+      "Nomior Code does not record you. In v1 it reads what your recorder already wrote — Anarlog's or Granola's local store, or a transcript file you drop in — and joins it to the calendar event and the mail thread it belongs to.",
+      "One meeting entity: transcript, notes, decisions, linked from a unified calendar across every Google account you connect, with recurring series grouped by their recurrence. Mail is per label, sender or thread — never the whole mailbox.",
+      "Analysis runs on the provider subscriptions you already have; search and embeddings run locally and cost nothing.",
     ],
     demo: {
       name: "calendar-week.gif",
       caption:
-        "Three Google accounts in one week view, color-coded; a standup opens straight into its transcript.",
+        "A week across three connected Google accounts, colour-coded per account; a standup opens straight into its linked transcript.",
     },
   },
   {
     id: "instances",
-    eyebrow: "Multi-account instances",
-    title: "Every seat you own, one scheduler",
+    eyebrow: "Multi-account",
+    title: ["Sign in to the accounts", "you already have"],
     copy: [
-      "Connect several Claude, Codex or Grok profiles as instances. The scheduler watches each provider's own rate-limit events — never your credentials — and picks the instance with headroom, explaining every choice.",
-      "Advisory by default: it suggests, you decide. Pin an instance and the suggestion engine steps aside.",
+      "Add each Claude, Codex or Grok account as its own instance. Sign-in happens inside that provider's own CLI, into that provider's own local profile — Nomior Code never reads, stores or proxies a credential, and never asks you for one.",
+      "The scheduler reads the rate-limit events those CLIs already emit and suggests which instance to start a thread on, with the reason written out. It is advisory: pin an instance and the suggestion steps aside. This is a way to keep the seats you own organised, not a way around anyone's limits.",
     ],
     demo: {
       name: "scheduler-switch.gif",
       caption:
-        "One instance throttles; the next thread routes to the other, with the reason spelled out.",
+        "One instance reports a rate limit; the next thread is suggested on another, with the reason spelled out on the card.",
     },
   },
   {
     id: "review",
-    eyebrow: "Automated review",
-    title: "A second model reads every diff",
+    eyebrow: "Review engine",
+    title: ["A second model", "reads every diff"],
     copy: [
-      "The review engine verifies changes against your per-repo playbook and posts a deterministic verdict. Cards move across an in-app board — Queue, Reviewing, Waiting external, Approved, Not approved — with severity and evidence on each one.",
-      "Hand any card to a human with one action. Approved findings become memory candidates, so the same mistake doesn't ship twice.",
+      "Each review leg runs on the instance and model you choose, against your repo's playbook — the Verify, Context and Bar sections you actually edit. The verdict gate that decides pass or fail is deterministic code, not a model's opinion, and nothing reaches your forge until you approve it.",
+      "Cards move across an in-app board — Queue, Reviewing, Waiting external, Approved, Not approved — carrying severity and evidence. Hand any card to a human in one action. Approved findings become memory candidates, so the same mistake does not ship twice.",
     ],
     demo: {
       name: "review-board.gif",
-      caption: "A card crosses the board from Queue to a verdict without leaving the app.",
+      caption:
+        "A card crosses the board from Queue to a verdict, evidence attached, without leaving the app.",
     },
   },
   {
     id: "setups",
     eyebrow: "Setups",
-    title: "Your whole configuration, versioned",
+    title: ["Your whole configuration,", "versioned"],
     copy: [
-      "Skills, agents, playbooks, review config and memory templates bundle into a setup — a git repo under the hood, auto-committed on change, shareable from your own GitHub.",
-      "Teams push one baseline with role overlays to every seat, and drift is visible as a plain diff. Secrets are structurally excluded.",
+      "Skills, agents, review playbooks, MCP servers and memory templates bundle into a setup — a git repository under the hood, auto-committed on change, scanned for secrets before every commit, shared from your own GitHub.",
+      "Import shows a diff before it applies anything, and drift against what you applied is literally a git diff. Teams push one baseline with role overlays to every seat. Secrets are structurally excluded: a setup carries references, never values.",
     ],
   },
 ];
 
 export function Features() {
   return (
-    <section className="py-16 md:py-24" id="features">
-      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-28 px-5 md:gap-40 md:px-8">
-        {FEATURES.map((feature) => (
-          <Reveal className="max-w-2xl" key={feature.id}>
-            <article id={feature.id}>
-              <Eyebrow>{feature.eyebrow}</Eyebrow>
-              <h3 className="mt-4 text-2xl font-semibold tracking-tight md:text-4xl">
-                {feature.title}
-              </h3>
-              {feature.copy.map((paragraph) => (
-                <p className="mt-4 leading-relaxed text-fog" key={paragraph.slice(0, 24)}>
-                  {paragraph}
-                </p>
-              ))}
+    <section className="scroll-mt-20 border-t border-line/60 py-28 md:py-40" id="features">
+      <div className="mx-auto w-full max-w-[1180px] px-5 md:px-10">
+        <div className="flex flex-col gap-28 md:gap-40">
+          {FEATURES.map((feature, index) => (
+            <article className="scroll-mt-24" id={feature.id} key={feature.id}>
+              <Reveal className="max-w-[62ch]">
+                <Eyebrow>{feature.eyebrow}</Eyebrow>
+              </Reveal>
+              <TitleLines
+                className="mt-4 max-w-[22ch] text-2xl font-semibold tracking-tighter md:text-4xl"
+                lines={feature.title}
+              />
+              <Reveal className="max-w-[62ch]" delay={0.06}>
+                {feature.copy.map((paragraph) => (
+                  <p className="mt-4 leading-relaxed text-fog" key={paragraph.slice(0, 24)}>
+                    {paragraph}
+                  </p>
+                ))}
+              </Reveal>
               {feature.demo ? (
-                <DemoFigure caption={feature.demo.caption} name={feature.demo.name} />
+                <Reveal delay={0.1}>
+                  <DemoFigure
+                    caption={feature.demo.caption}
+                    index={`${String(index + 1).padStart(2, "0")} / 0${FEATURES.length}`}
+                    name={feature.demo.name}
+                  />
+                </Reveal>
               ) : null}
             </article>
-          </Reveal>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );

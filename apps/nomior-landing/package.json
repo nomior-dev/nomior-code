@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
     "start": "wrangler dev --config dist/server/wrangler.json --port 3003",
     "deploy": "wrangler deploy --config dist/server/wrangler.json",
     "deploy:dryrun": "wrangler deploy --config dist/server/wrangler.json --dry-run",

@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as TestClock from "effect/testing/TestClock";
 
-import { NomiorSqlitePersistenceMemory } from "../persistence/Sqlite.ts";
+import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import { LegRunError, LegRunner, type ReviewLegConfig } from "./Legs.ts";
 import { MemoryCandidateSink, type MemoryCandidate } from "./MemoryCandidates.ts";
 import type { PlaybookPresence } from "./Playbook.ts";
@@ -109,7 +109,7 @@ const makeTestLayer = (options: {
       }),
     ),
     Layer.provideMerge(ReviewJobStore.layer),
-    Layer.provideMerge(NomiorSqlitePersistenceMemory),
+    Layer.provideMerge(SqlitePersistenceMemory),
     Layer.provideMerge(NodeServices.layer),
   );
 };
@@ -361,6 +361,93 @@ describe("ReviewEngine", () => {
         makeTestLayer({
           harness,
           legOutput: () => '{"findings": [], "needsExternalReview": true}',
+        }),
+      ),
+    );
+  });
+
+  /**
+   * `needsExternalReview` must not be a way around the gate. A leg that
+   * reports a blocking finding and asks for escalation in the same breath is
+   * still a blocked review: the gate runs first, and a not-approved verdict
+   * wins over the escalation request. Otherwise leg output alone could route a
+   * critical finding to a human resolution that never sees it.
+   */
+  it.effect("a blocking finding wins over a leg's escalation request", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const engine = yield* ReviewEngine.ReviewEngine;
+      yield* engine.submit(submitInput);
+      const outcome = yield* engine.processNext();
+
+      assert.strictEqual(outcome.kind, "completed");
+      if (outcome.kind !== "completed") return;
+      assert.strictEqual(outcome.job.status, "not-approved");
+      assert.strictEqual(outcome.verdict.decision, "not-approved");
+      assert.isTrue(
+        outcome.verdict.reasons.some((reason) => reason.includes("SQL injection")),
+        "the blocking finding must be recorded in the verdict",
+      );
+    }).pipe(
+      Effect.provide(
+        makeTestLayer({
+          harness,
+          legOutput: (config) =>
+            config.role === "security"
+              ? APPROVE_OUTPUT
+              : '{"findings": [{"severity": "critical", "summary": "SQL injection in the scope filter"}], "needsExternalReview": true}',
+        }),
+      ),
+    );
+  });
+
+  /**
+   * The same shape split across legs: one leg blocks, another asks to
+   * escalate. Escalation still loses.
+   */
+  it.effect("one leg cannot escalate around another leg's critical finding", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const engine = yield* ReviewEngine.ReviewEngine;
+      yield* engine.submit(submitInput);
+      const outcome = yield* engine.processNext();
+      assert.strictEqual(outcome.kind, "completed");
+      if (outcome.kind !== "completed") return;
+      assert.strictEqual(outcome.job.status, "not-approved");
+    }).pipe(
+      Effect.provide(
+        makeTestLayer({
+          harness,
+          legOutput: (config) =>
+            config.role === "claude-verify"
+              ? '{"findings": [{"severity": "critical", "summary": "drops the scope predicate"}]}'
+              : '{"findings": [], "needsExternalReview": true}',
+        }),
+      ),
+    );
+  });
+
+  /**
+   * Unparseable output is a blocking finding, so it too outranks escalation:
+   * a leg cannot both refuse to be read and send the job to a human.
+   */
+  it.effect("unparseable output outranks an escalation request", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const engine = yield* ReviewEngine.ReviewEngine;
+      yield* engine.submit(submitInput);
+      const outcome = yield* engine.processNext();
+      assert.strictEqual(outcome.kind, "completed");
+      if (outcome.kind !== "completed") return;
+      assert.strictEqual(outcome.job.status, "not-approved");
+    }).pipe(
+      Effect.provide(
+        makeTestLayer({
+          harness,
+          legOutput: (config) =>
+            config.role === "claude-verify"
+              ? "I could not produce JSON, sorry."
+              : '{"findings": [], "needsExternalReview": true}',
         }),
       ),
     );

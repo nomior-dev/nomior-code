@@ -5,12 +5,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
-import { NomiorSqlitePersistenceMemory } from "../persistence/Sqlite.ts";
+import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as ReviewJobStore from "./ReviewJobStore.ts";
 import { ReviewJobId, type ReviewTarget } from "./Schemas.ts";
 
 const TestLayer = ReviewJobStore.layer.pipe(
-  Layer.provideMerge(NomiorSqlitePersistenceMemory),
+  Layer.provideMerge(SqlitePersistenceMemory),
   Layer.provideMerge(NodeServices.layer),
 );
 

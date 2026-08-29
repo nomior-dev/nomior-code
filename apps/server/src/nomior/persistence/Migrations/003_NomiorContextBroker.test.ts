@@ -1,21 +1,22 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
-import { runMigrations } from "../Migrations.ts";
-import * as NodeSqliteClient from "../NodeSqliteClient.ts";
+import { SqlitePersistenceMemory } from "../../../persistence/Layers/Sqlite.ts";
+import { runMigrations } from "../../../persistence/Migrations.ts";
+import * as NodeSqliteClient from "../../../persistence/NodeSqliteClient.ts";
+import { runNomiorMigrations } from "../Migrations.ts";
 
-const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
+// The shared setup layer turns foreign keys on before migrating, so the
+// cascade path below is the one the real server takes.
+const layer = it.layer(SqlitePersistenceMemory.pipe(Layer.provideMerge(NodeServices.layer)));
 
-layer("044_NomiorContextBroker", (it) => {
+layer("003_NomiorContextBroker", (it) => {
   it.effect("creates the nomior context tables and keeps FTS in sync via triggers", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-
-      yield* sql`PRAGMA foreign_keys = ON`;
-      yield* runMigrations({ toMigrationInclusive: 43 });
-      yield* runMigrations({ toMigrationInclusive: 44 });
 
       const tables = yield* sql<{ readonly name: string }>`
         SELECT name FROM sqlite_master WHERE type IN ('table', 'trigger')
@@ -77,19 +78,29 @@ layer("044_NomiorContextBroker", (it) => {
       yield* sql`INSERT INTO nomior_chunks_fts(nomior_chunks_fts) VALUES ('integrity-check')`;
     }),
   );
-
-  it.effect("is idempotent when re-run", () =>
-    Effect.gen(function* () {
-      yield* runMigrations({ toMigrationInclusive: 44 });
-      const sql = yield* SqlClient.SqlClient;
-      // The DDL is IF NOT EXISTS throughout; re-executing the migration body
-      // against an already-migrated database must not fail.
-      const migration = yield* Effect.promise(() => import("./044_NomiorContextBroker.ts"));
-      yield* migration.default;
-      const tables = yield* sql<{ readonly name: string }>`
-        SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'nomior_sources'
-      `;
-      assert.strictEqual(tables.length, 1);
-    }),
-  );
 });
+
+// A pre-consolidation build wrote this schema into upstream slot 44. That row
+// makes the upstream Migrator skip the real 044 upstream will eventually ship,
+// so the migration has to release the slot on databases that already have it.
+it.effect("releases the upstream slot a pre-consolidation build squatted", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* runMigrations({ toMigrationInclusive: 43 });
+    yield* sql`
+      INSERT INTO effect_sql_migrations (migration_id, name)
+      VALUES (44, 'NomiorContextBroker'), (45, 'SomeUpstreamMigration')
+    `;
+
+    yield* runNomiorMigrations();
+
+    const rows = yield* sql<{ readonly migration_id: number; readonly name: string }>`
+      SELECT migration_id, name FROM effect_sql_migrations WHERE migration_id >= 44
+    `;
+    assert.deepStrictEqual(
+      rows.map((row) => [Number(row.migration_id), row.name]),
+      // Only our squatted row goes; an upstream-owned row is left alone.
+      [[45, "SomeUpstreamMigration"]],
+    );
+  }).pipe(Effect.provide(NodeSqliteClient.layerMemory())),
+);

@@ -1,6 +1,14 @@
 import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
+/**
+ * Connector accounts and per-stream sync cursors.
+ *
+ * The DDL is unchanged from the connectors track's own migrator, which tracked
+ * itself in a separate `nomior_connector_migrations` ledger. Databases created
+ * by that build already hold these tables (the DDL is `IF NOT EXISTS`), so this
+ * entry is a no-op there and only the stale ledger needs removing.
+ */
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
@@ -30,4 +38,6 @@ export default Effect.gen(function* () {
       PRIMARY KEY (account_id, stream_id)
     )
   `;
+
+  yield* sql`DROP TABLE IF EXISTS nomior_connector_migrations`;
 });

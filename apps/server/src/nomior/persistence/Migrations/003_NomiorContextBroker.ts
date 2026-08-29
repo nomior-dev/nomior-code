@@ -14,6 +14,21 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
+  // A pre-consolidation build registered this schema as upstream slot 44 in
+  // `effect_sql_migrations`. Release the slot: while it is squatted the
+  // Migrator skips upstream's real 044 (it only runs ids above the latest
+  // recorded) and `migrate-dev-db`'s slot check hard-fails. Matched by name,
+  // so a genuine upstream row in slot 44 is never touched. Guarded because the
+  // upstream ledger only exists once upstream's migrator has run.
+  const upstreamLedger = yield* sql<{ readonly n: number }>`
+    SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+  `;
+  if (upstreamLedger[0]?.n === 1) {
+    yield* sql`
+      DELETE FROM effect_sql_migrations WHERE migration_id = 44 AND name = 'NomiorContextBroker'
+    `;
+  }
+
   yield* sql`
     CREATE TABLE IF NOT EXISTS nomior_sources (
       id TEXT PRIMARY KEY,

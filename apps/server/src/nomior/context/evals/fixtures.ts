@@ -79,7 +79,7 @@ export const evalCorpus: ReadonlyArray<SourceInput> = [
     segments: [
       {
         text: "Granola support confirmed that commercial use of their local cache is allowed for personal tooling, but redistribution of their API requires a partnership agreement.",
-        speaker: "support@granola.ai",
+        speaker: "support@granola.example",
       },
       {
         text: "Action for us: verify the partnership terms before the public release milestone.",

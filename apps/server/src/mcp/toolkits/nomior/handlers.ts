@@ -11,6 +11,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { McpServer } from "effect/unstable/ai";
 
+import { NomiorContextLive } from "../../../nomior/NomiorRuntime.ts";
 import * as RetrievalPort from "../../../nomior/context/RetrievalPort.ts";
 import { redactSecrets } from "../../../nomior/context/redactSecrets.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -55,11 +56,24 @@ const truncateToTokenBudget = (text: string, maxTokens: number): string => {
   return text;
 };
 
-export const clampBudgetTokens = (requested: number | undefined): number =>
-  Math.min(
+/**
+ * Clamp a requested budget into the server's range. NaN is treated as "not
+ * requested" rather than clamped, because it survives `Math.min`/`Math.max`
+ * and a NaN budget makes every `spent + cost > budget` test false — an
+ * unbounded read. (±Infinity clamps normally to the cap and the floor.) The
+ * tool schema rejects both first; this keeps the guarantee from resting on
+ * that alone.
+ */
+export const clampBudgetTokens = (requested: number | undefined): number => {
+  const wanted =
+    requested === undefined || Number.isNaN(requested)
+      ? CONTEXT_SEARCH_DEFAULT_BUDGET_TOKENS
+      : requested;
+  return Math.min(
     CONTEXT_SEARCH_MAX_BUDGET_TOKENS,
-    Math.max(CONTEXT_SEARCH_MIN_BUDGET_TOKENS, requested ?? CONTEXT_SEARCH_DEFAULT_BUDGET_TOKENS),
+    Math.max(CONTEXT_SEARCH_MIN_BUDGET_TOKENS, wanted),
   );
+};
 
 /**
  * Fail-closed scope resolution: an explicit `scope` argument is authorized
@@ -241,11 +255,16 @@ const handlers = {
 export const NomiorContextToolkitHandlersLive = NomiorContextToolkit.toLayer(handlers);
 
 /**
- * Registration layer merged into `McpHttpServer.layer`. `layerUnavailable` is
- * the single swap site: the integrator replaces it with the real
- * ContextRetrieval adapter layer once the context engine lands.
+ * Registration layer merged into `McpHttpServer.layer`, wired to the real
+ * context engine: `NomiorRuntime.NomiorContextLive` builds the broker (FTS +
+ * vectors + embedding worker), the memory-candidate store and the retrieval
+ * port adapter. The only remaining requirement is `SqlClient`, which the
+ * server's route layer already provides.
+ *
+ * `RetrievalPort.layerUnavailable` stays exported for a build that wants the
+ * tools present but failing closed; it is no longer what ships.
  */
 export const NomiorContextToolkitRegistrationLive = McpServer.toolkit(NomiorContextToolkit).pipe(
   Layer.provide(NomiorContextToolkitHandlersLive),
-  Layer.provide(RetrievalPort.layerUnavailable),
+  Layer.provide(NomiorContextLive),
 );

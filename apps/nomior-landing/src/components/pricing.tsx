@@ -1,111 +1,123 @@
-import { Eyebrow, Reveal } from "./reveal";
+import { Eyebrow, Reveal, TitleLines } from "./reveal";
 
 interface Tier {
   readonly name: string;
   readonly price: string;
-  readonly priceNote?: string;
+  readonly priceNote: string;
   readonly summary: string;
   readonly items: readonly string[];
-  readonly highlighted?: boolean;
+  readonly lead?: boolean;
 }
 
 const TIERS: readonly Tier[] = [
   {
     name: "Free",
     price: "$0",
-    priceNote: "forever, local",
+    priceNote: "local, no account",
     summary: "Everything that runs on your machine.",
     items: [
-      "Capsules, context broker + MCP, memory",
-      "Meetings via Anarlog, Granola or import",
-      "Multi-account instances + scheduler",
-      "Review engine + board",
-      "Setups, versioned and shared via your GitHub",
+      "Capsules and project runtimes",
+      "Context broker + MCP toolkit",
+      "Meetings from Anarlog, Granola or a transcript file",
+      "Multi-account instances and the scheduler",
+      "Memory, review engine and board",
+      "Setups, git-versioned, shared from your own GitHub",
     ],
-    highlighted: true,
+    lead: true,
   },
   {
     name: "Pro",
     price: "~$15",
-    priceNote: "per month",
-    summary: "Personal features that run on our servers.",
+    priceNote: "per month · $150/yr",
+    summary: "Personal features that need our servers.",
     items: [
-      "End-to-end encrypted sync, multi-device",
-      "Remote access through the relay",
-      "Shareable links for notes and review reports",
-      "Hosted setups with auto-update subscriptions",
-      "Cloud API, hosted MCP, scheduled automations",
+      "End-to-end encrypted sync across your devices",
+      "Remote access to your machine through our relay",
+      "Share links for notes and review reports",
+      "Hosted setup storage and auto-update subscriptions",
+      "Cloud API, hosted MCP, webhooks, scheduled runs",
     ],
   },
   {
     name: "Team",
     price: "$30–40",
     priceNote: "per seat",
-    summary: "One baseline for the whole team.",
+    summary: "One baseline for everyone.",
     items: [
-      "Hosted review runners on your API keys",
+      "Hosted review runners on the company's API keys",
       "Shared org memory and context",
       "Unified org calendars",
-      "Setup baseline + role overlays, drift visible",
-      "Roles, approvals, audit, admin",
+      "Company setup baseline + role overlays, drift visible",
+      "Roles, policies, approvals, audit, admin",
     ],
   },
 ];
 
 export function Pricing() {
   return (
-    <section className="py-32 md:py-44" id="pricing">
-      <div className="mx-auto w-full max-w-[1100px] px-5 md:px-8">
+    <section className="scroll-mt-20 border-t border-line/60 py-28 md:py-40" id="pricing">
+      <div className="mx-auto w-full max-w-[1180px] px-5 md:px-10">
         <Reveal>
           <Eyebrow>Pricing</Eyebrow>
-          <h2 className="mt-4 max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">
-            Local is free. Servers are paid.
-          </h2>
-          <p className="mt-4 max-w-xl leading-relaxed text-fog">
-            The whole product runs on your machine at no cost — that is the trust story, not a
-            trial. You pay only for the parts that run on ours.
+        </Reveal>
+        <TitleLines
+          className="mt-5 max-w-[16ch] text-3xl font-semibold tracking-tighter md:text-5xl"
+          lines={["Local is free.", "Servers are paid."]}
+        />
+        <Reveal className="mt-5 max-w-[58ch]" delay={0.05}>
+          <p className="leading-relaxed text-fog">
+            One rule sets every price: what runs on your machine costs nothing, what runs on ours
+            costs money. The AI work runs on the provider subscriptions you already pay for, so
+            there is no inference for us to resell and no reason to meter you.
           </p>
         </Reveal>
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
+
+        <div className="mt-16 grid grid-cols-1 border-t border-line md:grid-cols-3">
           {TIERS.map((tier, index) => (
-            <Reveal delay={index * 0.07} key={tier.name}>
-              <article
-                className={`flex h-full flex-col rounded-[var(--radius-brand)] border p-6 ${
-                  tier.highlighted ? "border-gold/60 bg-surface" : "border-line bg-surface/50"
-                }`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
+            <Reveal
+              className={`border-b border-line md:border-b-0 ${
+                index > 0 ? "md:border-l md:border-line" : ""
+              }`}
+              delay={index * 0.06}
+              key={tier.name}
+            >
+              <div className="flex h-full flex-col py-8 md:px-7 md:first:pl-0 md:last:pr-0">
+                <div className="flex items-baseline gap-3">
                   <h3 className="text-lg font-medium tracking-tight">{tier.name}</h3>
-                  <p className="font-mono text-sm">
-                    <span className={tier.highlighted ? "text-gold" : "text-cream"}>
-                      {tier.price}
-                    </span>
-                    {tier.priceNote ? (
-                      <span className="ml-1.5 text-xs text-fog-dim">{tier.priceNote}</span>
-                    ) : null}
-                  </p>
+                  {tier.lead ? (
+                    <span aria-hidden className="size-1.5 rounded-full bg-gold" />
+                  ) : null}
                 </div>
-                <p className="mt-2 text-sm text-fog">{tier.summary}</p>
-                <ul className="mt-5 flex flex-col gap-2.5 text-sm leading-relaxed text-fog">
+                <p className="mt-5 font-mono text-3xl tracking-tight text-cream tabular-nums">
+                  {tier.price}
+                </p>
+                <p className="mt-1.5 font-mono text-[11px] tracking-[0.14em] text-fog-dim uppercase">
+                  {tier.priceNote}
+                </p>
+                <p className="mt-5 text-sm leading-relaxed text-fog">{tier.summary}</p>
+                <ul className="mt-6 flex flex-col gap-3 border-t border-line pt-6 text-sm leading-relaxed text-fog">
                   {tier.items.map((item) => (
-                    <li className="flex gap-2.5" key={item}>
+                    <li className="flex gap-3" key={item}>
                       <span
                         aria-hidden
-                        className={`mt-[7px] size-1 shrink-0 rounded-full ${
-                          tier.highlighted ? "bg-gold" : "bg-fog-dim"
+                        className={`mt-[9px] h-px w-3 shrink-0 ${
+                          tier.lead ? "bg-gold" : "bg-fog-dim"
                         }`}
                       />
-                      {item}
+                      <span className="min-w-0">{item}</span>
                     </li>
                   ))}
                 </ul>
-              </article>
+              </div>
             </Reveal>
           ))}
         </div>
-        <Reveal className="mt-8" delay={0.1}>
-          <p className="font-mono text-xs text-fog-dim">
+
+        <Reveal className="mt-8 max-w-[62ch]" delay={0.1}>
+          <p className="font-mono text-xs leading-relaxed text-fog-dim">
             Enterprise — self-hosted sync and relay, compliance, managed connectors — comes later.
+            Hosted transcription is not on the list at any tier: local speech-to-text is free, and
+            cloud transcription runs on your own key.
           </p>
         </Reveal>
       </div>

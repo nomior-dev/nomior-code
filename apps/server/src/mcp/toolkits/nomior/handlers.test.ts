@@ -372,6 +372,29 @@ describe("clampBudgetTokens", () => {
     expect(clampBudgetTokens(99_000)).toBe(CONTEXT_SEARCH_MAX_BUDGET_TOKENS);
     expect(clampBudgetTokens(1_000)).toBe(1_000);
   });
+
+  /**
+   * The cap is a `Math.min`, so a non-finite request would propagate as NaN
+   * and make every `spent + cost > budget` comparison false — an unbounded
+   * read. The tool schema rejects those values before they get here
+   * (`Schema.Int` between 1 and 100k, and JSON has no NaN literal); this pins
+   * the clamp itself so the guarantee does not rest on the schema alone.
+   */
+  it("never yields a non-finite budget, whatever it is handed", () => {
+    for (const requested of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      -1,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    ]) {
+      const clamped = clampBudgetTokens(requested);
+      expect(Number.isFinite(clamped), `budget_tokens=${requested}`).toBe(true);
+      expect(clamped).toBeLessThanOrEqual(CONTEXT_SEARCH_MAX_BUDGET_TOKENS);
+      expect(clamped).toBeGreaterThanOrEqual(CONTEXT_SEARCH_MIN_BUDGET_TOKENS);
+    }
+  });
 });
 
 describe("estimateTokenCount", () => {

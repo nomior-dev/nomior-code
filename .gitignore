@@ -34,6 +34,10 @@ artifacts/app-store/screenshots/
 .github/pr-assets/
 native/**/target/
 node_modules/
+# Agent worktrees: nested checkouts of this same repo. Untracked, and excluded
+# from lint/fmt in vite.config.ts so a whole-repo walk does not double-report
+# every upstream file (and misfire path-scoped rules on the nested copies).
+.claude/worktrees/
 .alchemy/
 *.log
 .env*

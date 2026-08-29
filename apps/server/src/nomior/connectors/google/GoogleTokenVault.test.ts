@@ -91,3 +91,47 @@ it.effect("fails loudly (not silently empty) on undecodable stored bytes", () =>
     assert.strictEqual(failure.operation, "get");
   }),
 );
+
+/**
+ * A decode failure carries the schema error as its cause, and a schema error
+ * quotes the value it rejected — which here is the token JSON. The error a
+ * caller logs must name the account and the operation, never the material.
+ */
+it.effect("a failed read never renders the stored token material", () =>
+  Effect.gen(function* () {
+    const fake = makeSecretStoreFake();
+    const vault = yield* make.pipe(Effect.provide(fake.layer));
+
+    // Well-formed JSON with the wrong shape: the decoder rejects it while
+    // holding the real token strings.
+    fake.secrets.set(
+      `nomior-google-token-${accountA}`,
+      new TextEncoder().encode(
+        JSON.stringify({ access_token: "ya29.SECRET-ACCESS", refresh_token: "1//SECRET-REFRESH" }),
+      ),
+    );
+    const failure = yield* vault.get(accountA).pipe(Effect.flip);
+
+    assert.notInclude(failure.message, "SECRET-ACCESS");
+    assert.notInclude(failure.message, "SECRET-REFRESH");
+    assert.include(failure.message, accountA);
+  }),
+);
+
+/**
+ * The vault is the only store for these tokens. Nothing else may be written:
+ * no settings entry, no database row, no second secret name — one secret per
+ * account, and its name carries the account id and nothing else.
+ */
+it.effect("writes nothing but the one per-account secret", () =>
+  Effect.gen(function* () {
+    const fake = makeSecretStoreFake();
+    const vault = yield* make.pipe(Effect.provide(fake.layer));
+
+    yield* vault.set(accountA, tokens("a"));
+    yield* vault.get(accountA);
+    yield* vault.set(accountA, tokens("a2"));
+
+    assert.deepEqual([...fake.secrets.keys()], [`nomior-google-token-${accountA}`]);
+  }),
+);

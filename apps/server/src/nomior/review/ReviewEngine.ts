@@ -16,12 +16,15 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { ProjectId } from "@t3tools/contracts";
+
 import type { PersistenceSqlError } from "../../persistence/Errors.ts";
-import { evaluateGate } from "./Gate.ts";
+import { evaluateGate, hasBlockingFindings } from "./Gate.ts";
 import {
   LegRunner,
   buildLegBrief,
   parseLegOutput,
+  reviewSchedulerProjectKey,
   type LegBriefInput,
   type ReviewLegConfig,
 } from "./Legs.ts";
@@ -226,11 +229,15 @@ export const make = Effect.gen(function* () {
 
       const context = yield* contexts.resolve(job);
 
+      // One scheduler key per repo, so a repo's legs stay on the instance it
+      // used last instead of rotating accounts leg by leg.
+      const schedulerProjectId = ProjectId.make(reviewSchedulerProjectKey(job.repo));
       const legOutcomes = yield* Effect.forEach(context.legs, (legConfig) =>
         legRunner
           .run(
             legConfig,
             buildLegBrief(legConfig, { ...context.brief, playbook: context.playbook }),
+            { projectId: schedulerProjectId },
           )
           .pipe(
             Effect.map((result) => ({
@@ -282,7 +289,15 @@ export const make = Effect.gen(function* () {
         outcome._tag === "ran" ? [outcome.parsed] : [],
       );
 
-      if (parsedLegs.some((leg) => leg.outcome === "parsed" && leg.report.needsExternalReview)) {
+      // Escalation is a request, not an override: a leg that reports a
+      // blocking finding (or output the parser could not read) and asks for a
+      // human in the same breath is still a blocked review. The gate decides
+      // first, so `needsExternalReview` can never route a critical finding
+      // past it into a human resolution that never sees the finding.
+      const escalationRequested = parsedLegs.some(
+        (leg) => leg.outcome === "parsed" && leg.report.needsExternalReview,
+      );
+      if (escalationRequested && !hasBlockingFindings(parsedLegs)) {
         const waiting = yield* store.transition({
           id: job.id,
           from: "reviewing",

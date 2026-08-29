@@ -11,7 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
-import { NomiorSqlitePersistenceMemory } from "../persistence/Sqlite.ts";
+import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as RateLimitObserver from "./RateLimitObserver.ts";
 
 const claudeDriver = ProviderDriverKind.make("claudeAgent");
@@ -40,7 +40,7 @@ const claudeRateLimits = (info: Record<string, unknown>) => ({
 });
 
 const TestLayer = RateLimitObserver.layer.pipe(
-  Layer.provideMerge(NomiorSqlitePersistenceMemory),
+  Layer.provideMerge(SqlitePersistenceMemory),
   Layer.provideMerge(NodeServices.layer),
 );
 

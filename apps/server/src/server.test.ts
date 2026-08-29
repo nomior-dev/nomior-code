@@ -288,7 +288,11 @@ const browserOtlpTracingLayer = Layer.mergeAll(
 
 const makeAuthTestLayer = () =>
   EnvironmentAuth.layer.pipe(
-    Layer.provide(SqlitePersistenceMemory),
+    // provideMerge: the route layer's MCP server carries the Nomior context
+    // toolkit, whose retrieval port is backed by the real broker, so routes
+    // need SqlClient here exactly as they get it from `RuntimeDependenciesLive`
+    // in server.ts.
+    Layer.provideMerge(SqlitePersistenceMemory),
     Layer.provide(ServerSecretStore.layer),
   );
 

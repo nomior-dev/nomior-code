@@ -1,10 +1,13 @@
 /**
  * RetrievalPort - the narrow interface the Nomior MCP context toolkit depends
  * on for retrieval. The real context engine (FTS + vectors + rerank under
- * `apps/server/src/nomior/context/`) is built separately; it satisfies this
- * port via an adapter layer. Until that is wired, `layerUnavailable` keeps the
- * server bootable with tools that fail closed, and `layerInMemory` backs tests
- * and local development with a deterministic term-overlap ranker.
+ * `apps/server/src/nomior/context/`) satisfies it through
+ * `RetrievalPortLive.ts`, which is what the shipped toolkit is wired to.
+ *
+ * The two other layers here are not production paths: `layerInMemory` backs
+ * the toolkit's handler tests with a deterministic term-overlap ranker, and
+ * `layerUnavailable` fails every tool closed — for a build that wants the
+ * tools advertised without a context store behind them.
  *
  * @module nomior/context/RetrievalPort
  */
@@ -194,10 +197,14 @@ export interface ContextRetrievalPortShape {
    * Gate for every caller-supplied scope. The toolkit calls this whenever an
    * agent names a scope explicitly (search, decisions, remember); a thread's
    * own default scope is authorized by construction and never passes through
-   * here. Trust model, decided 2026-08-29: Nomior is single-user, so the
-   * shipped adapters may allow any known scope — this hook exists so the real
-   * adapter can still say "thread X may not use scope Y" (shared servers,
-   * confidential capsules) without a toolkit change.
+   * here.
+   *
+   * Must fail closed: an adapter that cannot establish what the thread is
+   * allowed to see denies, rather than treating "no answer" as "everything".
+   * `RetrievalPortLive` refuses any explicit scope from a thread with no
+   * project, and any other project's scope from a thread that has one;
+   * customer and capsule scopes stay open for a thread that has a project,
+   * because a shared capsule crossing projects is the point of one.
    */
   readonly authorizeScope: (
     request: ContextScopeAuthorizationRequest,

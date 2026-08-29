@@ -7,7 +7,7 @@
  * pattern (PLAN.md): a brief must never describe a tool that is not attached
  * to that leg.
  */
-import { ProviderInstanceId, TrimmedNonEmptyString } from "@t3tools/contracts";
+import { ProviderInstanceId, TrimmedNonEmptyString, type ProjectId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -161,12 +161,37 @@ export class LegRunError extends Schema.TaggedErrorClass<LegRunError>()("NomiorL
 
 export interface LegRunResult {
   readonly rawOutput: string;
+  /**
+   * The instance the leg actually ran on. Differs from `config.instanceId`
+   * when the scheduler advised another instance of the same driver; absent
+   * when the runner does not select instances (test fakes).
+   */
+  readonly instanceId?: ProviderInstanceId | undefined;
+  /** The scheduler's reason for that instance, verbatim, for the UI. */
+  readonly schedulerReason?: string | undefined;
+}
+
+export interface LegRunOptions {
+  /**
+   * Scheduler key for instance selection. The engine passes one key per repo
+   * so a repo's reviews stay on the instance they used last (sticky) instead
+   * of rotating an account per leg.
+   */
+  readonly projectId?: ProjectId | undefined;
 }
 
 /**
+ * Scheduler key for a repo's reviews. Namespaced so a repo name can never
+ * collide with a real project id in `nomior_scheduler_assignments`.
+ */
+export const reviewSchedulerProjectKey = (repo: string): string => `review:${repo}`;
+
+/**
  * Execution port for review legs. The engine core depends only on this
- * interface; production wiring binds it to provider sessions, tests bind
- * fakes.
+ * interface; production wiring binds it to `LegRunnerLive` (scheduler-selected
+ * instance + `LegLauncher`), tests bind fakes.
+ *
+ * `options` is optional so a two-argument fake still satisfies the port.
  */
 export class LegRunner extends Context.Service<
   LegRunner,
@@ -174,6 +199,7 @@ export class LegRunner extends Context.Service<
     readonly run: (
       config: ReviewLegConfig,
       brief: string,
+      options?: LegRunOptions,
     ) => Effect.Effect<LegRunResult, LegRunError>;
   }
 >()("t3/nomior/review/Legs/LegRunner") {}

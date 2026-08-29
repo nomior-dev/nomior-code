@@ -7,11 +7,10 @@ import * as Option from "effect/Option";
 import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as ConnectorAccountStore from "./ConnectorAccountStore.ts";
 import * as ConnectorCursorStore from "./ConnectorCursorStore.ts";
-import { NomiorConnectorMigrationsLive } from "./Migrations.ts";
 import { ConnectorAccountId, ConnectorDriverKind } from "./Records.ts";
 
 const storesLayer = Layer.mergeAll(ConnectorAccountStore.layer, ConnectorCursorStore.layer).pipe(
-  Layer.provideMerge(Layer.provideMerge(NomiorConnectorMigrationsLive, SqlitePersistenceMemory)),
+  Layer.provideMerge(SqlitePersistenceMemory),
   Layer.provide(NodeServices.layer),
 );
 
