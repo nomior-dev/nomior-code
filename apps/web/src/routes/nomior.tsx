@@ -1,61 +1,25 @@
-import { RegistryContext } from "@effect/atom-react";
-import {
-  Outlet,
-  createFileRoute,
-  redirect,
-  useLocation,
-  useNavigate,
-} from "@tanstack/react-router";
-import { useContext, useMemo } from "react";
+import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 
 import { Badge } from "../components/ui/badge";
 import { SidebarInset } from "../components/ui/sidebar";
-import { Toggle, ToggleGroup } from "../components/ui/toggle-group";
-import { fixtureNomiorPort } from "../nomior/fixtures";
-import { type NomiorDataPort, NomiorPortProvider } from "../nomior/port";
-import { createRpcNomiorPort, whileConnecting } from "../nomior/rpcPort";
-import { usePrimaryEnvironment, usePrimaryEnvironmentId } from "../state/environments";
-import { createNomiorCommandRunner } from "../state/nomior";
-import {
-  WorkspaceBreadcrumb,
-  WorkspaceBreadcrumbItem,
-  WorkspaceBreadcrumbSeparator,
-} from "../components/WorkspaceBreadcrumb";
+import { NomiorPortProvider } from "../nomior/port";
+import { nomiorPageFor } from "../nomior/pages";
+import { useNomiorDataPort } from "../nomior/useDataPort";
+import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "../components/WorkspaceBreadcrumb";
 import { WorkspacePageHeader } from "../components/WorkspacePageHeader";
 import { isElectron } from "../env";
 
-const NOMIOR_TABS = [
-  { id: "review", label: "Review board", path: "/nomior/review" },
-  { id: "context", label: "Context & memory", path: "/nomior/context" },
-  { id: "calendar", label: "Calendar", path: "/nomior/calendar" },
-  { id: "meetings", label: "Meetings", path: "/nomior/meetings" },
-  { id: "instances", label: "Instances", path: "/nomior/instances" },
-] as const;
-
 /**
- * The live port whenever there is an environment to talk to, the fixture port
- * otherwise (hosted app.t3.codes with nothing paired). An environment that is
- * registered but offline still gets the live port: its panels then show the
- * real failure with a retry, rather than swapping to sample data unannounced.
- * While the socket is still coming up the reads are held pending instead, so a
- * fresh load shows a skeleton rather than an error it is about to disprove.
+ * The shell the Nomior surfaces render inside: one data port for all of them,
+ * and the header that names the current one.
+ *
+ * There is no tab bar. Every surface this shell hosts is its own sidebar entry,
+ * so a strip repeating those four choices would be a second navigation for the
+ * same destinations — and the one that disagrees first when a surface is added.
  */
-function useNomiorDataPort(): NomiorDataPort {
-  const registry = useContext(RegistryContext);
-  const environmentId = usePrimaryEnvironmentId();
-  const phase = usePrimaryEnvironment()?.connection.phase ?? "available";
-
-  return useMemo(() => {
-    if (environmentId === null) return fixtureNomiorPort();
-    const live = createRpcNomiorPort(createNomiorCommandRunner(registry, environmentId));
-    return phase === "connecting" || phase === "reconnecting" ? whileConnecting(live) : live;
-  }, [environmentId, phase, registry]);
-}
-
 function NomiorLayout() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const activeTab = NOMIOR_TABS.find((tab) => location.pathname.startsWith(tab.path));
+  const page = nomiorPageFor(location.pathname);
   const port = useNomiorDataPort();
 
   return (
@@ -64,17 +28,9 @@ function NomiorLayout() {
         <WorkspacePageHeader electron={isElectron}>
           <div className="flex w-full min-w-0 items-center gap-3">
             <WorkspaceBreadcrumb ariaLabel="Nomior breadcrumb" className="min-w-0">
-              <WorkspaceBreadcrumbItem>
-                <h1>Nomior</h1>
+              <WorkspaceBreadcrumbItem current>
+                <h1 className="truncate">{page?.label ?? "Nomior"}</h1>
               </WorkspaceBreadcrumbItem>
-              {activeTab ? (
-                <>
-                  <WorkspaceBreadcrumbSeparator className="hidden md:flex" />
-                  <WorkspaceBreadcrumbItem className="hidden md:flex" current>
-                    <span className="truncate">{activeTab.label}</span>
-                  </WorkspaceBreadcrumbItem>
-                </>
-              ) : null}
             </WorkspaceBreadcrumb>
             {port.isFixture ? (
               // Every panel behind this layout reads the port provided below,
@@ -83,23 +39,6 @@ function NomiorLayout() {
                 Sample data
               </Badge>
             ) : null}
-            <div className="ms-auto flex min-w-0 items-center justify-end">
-              <ToggleGroup
-                aria-label="Nomior panels"
-                onValueChange={(next) => {
-                  const target = NOMIOR_TABS.find((tab) => tab.id === next[0]);
-                  if (target) void navigate({ to: target.path });
-                }}
-                value={activeTab ? [activeTab.id] : []}
-                variant="segmented"
-              >
-                {NOMIOR_TABS.map((tab) => (
-                  <Toggle key={tab.id} value={tab.id}>
-                    {tab.label}
-                  </Toggle>
-                ))}
-              </ToggleGroup>
-            </div>
           </div>
         </WorkspacePageHeader>
 

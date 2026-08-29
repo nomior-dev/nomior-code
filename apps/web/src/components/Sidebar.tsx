@@ -191,6 +191,7 @@ import {
   useComboboxFilter,
 } from "./ui/combobox";
 import { SidebarContent, SidebarGroup, SidebarMenuButton, useSidebar } from "./ui/sidebar";
+import { SidebarNomiorNav } from "../nomior/SidebarNomiorNav";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
@@ -3676,6 +3677,7 @@ export default function Sidebar() {
                 </Tooltip>
               </div>
             ) : null}
+            <SidebarNomiorNav />
           </SidebarGroup>
         }
       >

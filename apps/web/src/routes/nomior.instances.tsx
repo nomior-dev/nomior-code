@@ -1,19 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ScrollArea } from "../components/ui/scroll-area";
-import { WorkspacePageContainer } from "../components/WorkspacePageContainer";
-import { InstancesPanel } from "../nomior/InstancesPanel";
-
-function NomiorInstancesRoute() {
-  return (
-    <ScrollArea className="min-h-0 flex-1">
-      <WorkspacePageContainer width="wide">
-        <InstancesPanel />
-      </WorkspacePageContainer>
-    </ScrollArea>
-  );
-}
-
+/**
+ * Instances moved to `/settings/instances`. The old path is kept as a redirect
+ * because it shipped: a bookmark, a deep link from a thread, or a stale client
+ * still resolves rather than landing on a 404.
+ */
 export const Route = createFileRoute("/nomior/instances")({
-  component: NomiorInstancesRoute,
+  beforeLoad: () => {
+    throw redirect({ to: "/settings/instances", replace: true });
+  },
 });

@@ -2,7 +2,6 @@ import {
   ArrowLeftIcon,
   ChartNoAxesColumnIcon,
   GitPullRequestIcon,
-  LayoutDashboardIcon,
   SettingsIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -147,11 +146,13 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           ? "project-settings"
           : location.pathname === "/usage"
             ? "usage"
-            : /^\/nomior(?:\/|$)/.test(location.pathname)
-              ? "nomior"
-              : location.pathname === "/pull-requests"
-                ? "pull-requests"
-                : null,
+            : // `/nomior/*` is deliberately absent. Its surfaces are top-level
+              // sidebar destinations, so the footer keeps its utility row
+              // rather than swapping to a Back button — there is nothing to go
+              // back from when the nav that got you here is still on screen.
+              location.pathname === "/pull-requests"
+              ? "pull-requests"
+              : null,
   });
   const { environments } = useEnvironments();
   // The page reads every connected server, so one of them offering pull requests is enough for
@@ -179,11 +180,6 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     }
     void navigate({ to: "/usage" });
   }, [isMobile, navigate, setOpenMobile]);
-
-  const handleNomiorClick = useCallback(() => {
-    closeMobileSidebar();
-    void navigate({ to: "/nomior/review" });
-  }, [closeMobileSidebar, navigate]);
 
   const handleBackClick = useCallback(() => {
     closeMobileSidebar();
@@ -221,11 +217,6 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             icon={<ChartNoAxesColumnIcon />}
             label="Usage"
             onClick={handleUsageClick}
-          />
-          <SidebarUtilityItem
-            icon={<LayoutDashboardIcon />}
-            label="Nomior"
-            onClick={handleNomiorClick}
           />
         </>
       )}

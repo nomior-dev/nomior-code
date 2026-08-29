@@ -47,6 +47,7 @@ import {
   SettingsIcon,
   SquarePenIcon,
   TextSearchIcon,
+  LayersIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -140,6 +141,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
 import { toggleThemeEditorForTheme } from "./settings/themeEditorStore";
+import { NOMIOR_PAGES } from "../nomior/pages";
 import {
   COMMAND_PALETTE_META_ICON_CLASS,
   CommandPaletteMetaDot,
@@ -1609,6 +1611,40 @@ function OpenCommandPaletteDialog(props: {
         themeHalves,
         initialAppearance: resolvedTheme,
       });
+    },
+  });
+
+  // One command per Nomior surface, from the same registry the sidebar and the
+  // breadcrumb read, so a surface can never be reachable from the sidebar but
+  // missing from the palette.
+  for (const page of NOMIOR_PAGES) {
+    const PageIcon = page.icon;
+    actionItems.push({
+      kind: "action",
+      value: `action:nomior-${page.id}`,
+      searchTerms: [
+        "nomior",
+        ...page.label
+          .toLowerCase()
+          .split(/[^a-z]+/u)
+          .filter(Boolean),
+      ],
+      title: page.commandLabel,
+      icon: <PageIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await navigate({ to: page.path });
+      },
+    });
+  }
+
+  actionItems.push({
+    kind: "action",
+    value: "action:nomior-instances",
+    searchTerms: ["nomior", "instances", "accounts", "scheduler", "rate", "limit"],
+    title: "Open instances",
+    icon: <LayersIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      await navigate({ to: "/settings/instances" });
     },
   });
 
