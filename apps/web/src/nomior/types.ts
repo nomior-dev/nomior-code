@@ -204,8 +204,17 @@ export interface ConnectorAccountItem {
   readonly detail: string | null;
 }
 
+/**
+ * Where the client id in use came from. `bundled` is a release build and needs
+ * no setup at all; `operator` is an environment pointed at its own Google Cloud
+ * project; `none` is a source checkout or fork with neither, and is the only
+ * one that has to ask the user for anything.
+ */
+export type GoogleClientSource = "bundled" | "operator" | "none";
+
 export interface GoogleClientState {
   readonly configured: boolean;
+  readonly source: GoogleClientSource;
   /** Last four characters, enough to tell two ids apart. */
   readonly clientIdHint: string | null;
 }

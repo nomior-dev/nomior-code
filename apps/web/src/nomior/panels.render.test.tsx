@@ -12,6 +12,7 @@ import { addDays, startOfWeek } from "./calendar.logic";
 import { AgendaList, CalendarPanel, WeekGrid } from "./CalendarPanel";
 import {
   accountScope,
+  AdvancedConnectorSection,
   AnarlogConnectorSection,
   ConnectorAccountList,
   ConnectorAccountRow,
@@ -239,6 +240,12 @@ describe("Nomior panel subcomponents render fixture data", () => {
 
   const idle: ConnectorActionState = { pendingScope: null, notice: null };
 
+  /**
+   * The rendered attribute, not the word: every button carries `disabled:`
+   * variant classes, so matching the bare word passes on a live control.
+   */
+  const DISABLED_ATTRIBUTE = 'disabled=""';
+
   it("account rows keep never-synced, retryable and revoked apart", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
@@ -290,7 +297,7 @@ describe("Nomior panel subcomponents render fixture data", () => {
         state={{ pendingScope: accountScope(account.id), notice: null }}
       />,
     );
-    expect(pending).toContain("disabled");
+    expect(pending).toContain(DISABLED_ATTRIBUTE);
   });
 
   it("an action failure lands next to the control that fired it", async () => {
@@ -329,37 +336,53 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(markup).toContain("Disconnected.");
   });
 
-  it("a first run with no client id reads as a setup step, not a failure", async () => {
+  it("a build that carries its own client id asks for nothing: one live button", async () => {
     const port = createFixtureNomiorPort(now);
     const overview = await port.listConnectors();
-    const markup = renderToStaticMarkup(
-      <GoogleConnectorSection
-        onConnect={noop}
-        onSaveClientId={noop}
-        overview={{ ...overview, google: GOOGLE_CLIENT_UNCONFIGURED }}
-        state={idle}
-      />,
+    const google = renderToStaticMarkup(
+      <GoogleConnectorSection onConnect={noop} overview={overview} state={idle} />,
     );
-    expect(markup).toContain("No client id yet");
-    expect(markup).toContain("Add a Google OAuth client id above first.");
-    expect(markup).toContain("no bundled one");
-    // Connect is off, but it says why rather than sitting there dead.
-    expect(markup).toContain("disabled");
-  });
-
-  it("a configured client id shows its last four characters and nothing more", async () => {
-    const port = createFixtureNomiorPort(now);
-    const overview = await port.listConnectors();
-    const markup = renderToStaticMarkup(
-      <GoogleConnectorSection
+    expect(google).toContain("Connect Google account");
+    expect(google).not.toContain(DISABLED_ATTRIBUTE);
+    // Setup moved to Advanced, and Advanced is closed: no field on screen.
+    expect(google).not.toContain("client id");
+    const advanced = renderToStaticMarkup(
+      <AdvancedConnectorSection
         onConnect={noop}
         onSaveClientId={noop}
         overview={overview}
         state={idle}
       />,
     );
-    expect(markup).toContain("Client id ending j4kq");
-    expect(markup).not.toContain("googleusercontent.com");
+    expect(advanced).toContain("Advanced");
+    expect(advanced).not.toContain("OAuth client id");
+  });
+
+  it("with no client id anywhere, the button says where the setup step is", async () => {
+    const port = createFixtureNomiorPort(now);
+    const overview = await port.listConnectors();
+    const unconfigured = { ...overview, google: GOOGLE_CLIENT_UNCONFIGURED };
+    const google = renderToStaticMarkup(
+      <GoogleConnectorSection onConnect={noop} overview={unconfigured} state={idle} />,
+    );
+    expect(google).toContain("Advanced");
+    // Connect is off, but it says why rather than sitting there dead.
+    expect(google).toContain(DISABLED_ATTRIBUTE);
+
+    // And Advanced opens on its own, because this is the one build where the
+    // page can do nothing at all until someone fills that field in.
+    const advanced = renderToStaticMarkup(
+      <AdvancedConnectorSection
+        onConnect={noop}
+        onSaveClientId={noop}
+        overview={unconfigured}
+        state={idle}
+      />,
+    );
+    expect(advanced).toContain("OAuth client id");
+    expect(advanced).toContain("No client id yet");
+    // Gmail lives here rather than in the default path: its scope is restricted.
+    expect(advanced).toContain("Gmail");
   });
 
   it("a remote client is told the redirect cannot land here, ahead of any fixable reason", async () => {
@@ -368,18 +391,13 @@ describe("Nomior panel subcomponents render fixture data", () => {
     const remote = { ...overview, canStartLocalOAuth: false, google: GOOGLE_CLIENT_UNCONFIGURED };
     expect(renderToStaticMarkup(<RemoteOAuthNotice />)).toContain("loopback address");
     const markup = renderToStaticMarkup(
-      <GoogleConnectorSection
-        onConnect={noop}
-        onSaveClientId={noop}
-        overview={remote}
-        state={idle}
-      />,
+      <GoogleConnectorSection onConnect={noop} overview={remote} state={idle} />,
     );
     expect(markup).toContain("loopback address");
-    expect(markup).toContain("disabled");
+    expect(markup).toContain(DISABLED_ATTRIBUTE);
     // The client id is still missing, but saying so here would imply that
     // pasting one is enough to finish a sign-in this browser cannot finish.
-    expect(markup).not.toContain("Add a Google OAuth client id above first.");
+    expect(markup).not.toContain("Advanced");
   });
 
   it("anarlog reads as found, absent or refused, never as one merged state", async () => {

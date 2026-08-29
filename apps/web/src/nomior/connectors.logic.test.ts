@@ -6,9 +6,11 @@ import {
   ANARLOG_STORE_PATH,
   ANARLOG_UNSUPPORTED_SCHEMA,
   GOOGLE_CLIENT_CONFIGURED,
+  GOOGLE_CLIENT_OPERATOR,
   GOOGLE_CLIENT_UNCONFIGURED,
 } from "./fixtures.connectors";
 import {
+  accountsSignature,
   anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
@@ -18,6 +20,7 @@ import {
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
+  opensAdvancedByDefault,
   orderAccounts,
   showsDetail,
   statusPresentation,
@@ -101,17 +104,33 @@ describe("account ordering", () => {
 
 describe("google client id", () => {
   it("renders the hint and never a whole id", () => {
-    expect(clientIdHintLabel(GOOGLE_CLIENT_CONFIGURED)).toBe("Client id ending j4kq");
+    expect(clientIdHintLabel(GOOGLE_CLIENT_OPERATOR)).toBe("Client id ending 7t2v");
     expect(clientIdHintLabel(GOOGLE_CLIENT_UNCONFIGURED)).toBe("No client id yet");
-    expect(clientIdHintLabel({ configured: true, clientIdHint: null })).toContain("did not report");
+    expect(
+      clientIdHintLabel({ configured: true, source: "operator", clientIdHint: null }),
+    ).toContain("did not report");
+  });
+
+  it("says when the id in use is the one the build ships with", () => {
+    // Nothing to set up, and nothing the user chose: the label has to be able
+    // to say so, or Advanced reads as a step somebody skipped.
+    expect(clientIdHintLabel(GOOGLE_CLIENT_CONFIGURED)).toContain("Built-in");
   });
 
   it("treats an empty box as a clear only when there is something to clear", () => {
     expect(
       clientIdSaveIntent("  abc.apps.googleusercontent.com ", GOOGLE_CLIENT_UNCONFIGURED),
     ).toBe("save");
-    expect(clientIdSaveIntent("   ", GOOGLE_CLIENT_CONFIGURED)).toBe("clear");
+    expect(clientIdSaveIntent("   ", GOOGLE_CLIENT_OPERATOR)).toBe("clear");
     expect(clientIdSaveIntent("", GOOGLE_CLIENT_UNCONFIGURED)).toBe("unchanged");
+    // A bundled id is part of the build, so Save would have nothing to clear.
+    expect(clientIdSaveIntent("", GOOGLE_CLIENT_CONFIGURED)).toBe("unchanged");
+  });
+
+  it("opens the setup fields only for a build that has no id of its own", () => {
+    expect(opensAdvancedByDefault(GOOGLE_CLIENT_UNCONFIGURED)).toBe(true);
+    expect(opensAdvancedByDefault(GOOGLE_CLIENT_CONFIGURED)).toBe(false);
+    expect(opensAdvancedByDefault(GOOGLE_CLIENT_OPERATOR)).toBe(false);
   });
 });
 
@@ -166,7 +185,8 @@ describe("connect availability", () => {
       google: GOOGLE_CLIENT_UNCONFIGURED,
     });
     expect(reason).toContain("client id");
-    expect(reason).toContain("no bundled one");
+    // And says where the field is, since it is no longer on screen.
+    expect(reason).toContain("Advanced");
   });
 
   it("blocks a remote client on the loopback redirect, ahead of any fixable reason", () => {
@@ -222,6 +242,18 @@ describe("authorization url", () => {
     expect(authorizationUrlToOpen("/oauth/start")).toBeNull();
     expect(authorizationUrlToOpen("javascript:alert(1)")).toBeNull();
     expect(authorizationUrlToOpen("file:///etc/passwd")).toBeNull();
+  });
+});
+
+describe("account signature", () => {
+  it("changes when an account arrives, and when one first syncs", () => {
+    const before = [account({ id: "google-work" })];
+    const arrived = [...before, account({ id: "google-personal" })];
+    const synced = [account({ id: "google-work", lastSyncedAt: "2026-08-29T09:00:00.000Z" })];
+    expect(accountsSignature(arrived)).not.toBe(accountsSignature(before));
+    expect(accountsSignature(synced)).not.toBe(accountsSignature(before));
+    // Two reads of an unchanged list are equal, so the page stops re-reading.
+    expect(accountsSignature(before)).toBe(accountsSignature([account({ id: "google-work" })]));
   });
 });
 

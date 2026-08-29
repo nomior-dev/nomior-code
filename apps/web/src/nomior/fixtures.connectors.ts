@@ -66,15 +66,27 @@ export const connectorAccountScenarios: readonly ConnectorAccountScenario[] = [
   },
 ];
 
-/** Only the last four characters of a client id ever leave the server. */
+/**
+ * The shipped case: the build carries its own client id, so the page is one
+ * button. Only the last four characters of it ever leave the server.
+ */
 export const GOOGLE_CLIENT_CONFIGURED: GoogleClientState = {
   configured: true,
+  source: "bundled",
   clientIdHint: "j4kq",
 };
 
-/** First run, and the state clearing the id returns the environment to. */
+/** An environment pointed at the operator's own Google Cloud project. */
+export const GOOGLE_CLIENT_OPERATOR: GoogleClientState = {
+  configured: true,
+  source: "operator",
+  clientIdHint: "7t2v",
+};
+
+/** A build with no bundled id — a fork or a source checkout — and none set. */
 export const GOOGLE_CLIENT_UNCONFIGURED: GoogleClientState = {
   configured: false,
+  source: "none",
   clientIdHint: null,
 };
 

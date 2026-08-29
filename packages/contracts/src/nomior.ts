@@ -358,6 +358,13 @@ export type NomiorConnectorAccount = typeof NomiorConnectorAccount.Type;
  */
 export const NomiorGoogleClientState = Schema.Struct({
   configured: Schema.Boolean,
+  /**
+   * Where the id in use came from. `bundled` is the normal case in a release
+   * build and needs no setup UI at all; `operator` means someone pointed this
+   * environment at their own Google Cloud project; `none` is a source checkout
+   * or fork with neither, and is the only state that must ask for anything.
+   */
+  source: Schema.Literals(["bundled", "operator", "none"]),
   /** Last four characters only — enough to tell two ids apart, useless if leaked. */
   clientIdHint: Schema.NullOr(Schema.String),
 });

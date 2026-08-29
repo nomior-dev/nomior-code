@@ -73,7 +73,9 @@ it.layer(NodeServices.layer)("GoogleAuth", (it) => {
       assert.strictEqual(url.searchParams.get("code_challenge"), "challenge-1");
       assert.strictEqual(url.searchParams.get("code_challenge_method"), "S256");
       assert.strictEqual(url.searchParams.get("access_type"), "offline");
-      assert.strictEqual(url.searchParams.get("prompt"), "consent");
+      // `select_account` alongside `consent`: without it Google reuses the
+      // browser's current session and a second account can never be added.
+      assert.strictEqual(url.searchParams.get("prompt"), "consent select_account");
       // Desktop PKCE: the client secret must never appear.
       assert.isNull(url.searchParams.get("client_secret"));
     }),

@@ -2,11 +2,12 @@
  * Pure presentation logic for the connectors page.
  *
  * Connecting an account is the one flow on this surface that can fail for a
- * reason the user cannot see: no Google client id exists (there is no bundled
- * one), the OAuth redirect lands on a loopback listener the viewing browser
- * cannot reach, or the Anarlog store is absent — or present and deliberately
- * refused. Every one of those turns into a sentence here rather than into a
- * greyed-out button, so a blocked Connect always says who has to do what next.
+ * reason the user cannot see: this build carries no Google client id and none
+ * has been set, the OAuth redirect lands on a loopback listener the viewing
+ * browser cannot reach, or the Anarlog store is absent — or present and
+ * deliberately refused. Every one of those turns into a sentence here rather
+ * than into a greyed-out button, so a blocked Connect always says who has to
+ * do what next.
  *
  * @module nomior/connectors.logic
  */
@@ -125,21 +126,33 @@ export function orderAccounts(
 /** Only the last four characters ever reach the client, and only these render. */
 export function clientIdHintLabel(google: GoogleClientState): string {
   if (!google.configured) return "No client id yet";
-  return google.clientIdHint === null
-    ? "Configured; the server did not report which id"
-    : `Client id ending ${google.clientIdHint}`;
+  const hint =
+    google.clientIdHint === null
+      ? "the server did not report which id"
+      : `ending ${google.clientIdHint}`;
+  return google.source === "bundled" ? `Built-in client id, ${hint}` : `Client id ${hint}`;
+}
+
+/**
+ * Whether the setup fields open on their own. Only a build with no client id
+ * of its own has a setup step left for the user, and only then is Advanced
+ * something they have to find rather than something they may ignore.
+ */
+export function opensAdvancedByDefault(google: GoogleClientState): boolean {
+  return google.source === "none";
 }
 
 export type ClientIdSaveIntent = "save" | "clear" | "unchanged";
 
 /**
- * What pressing Save would do. An empty box means "clear", which turns the
- * Google connectors off — so the button says `Clear` and the panel warns first
- * rather than silently unconfiguring the environment.
+ * What pressing Save would do. An empty box means "clear", so the button says
+ * `Clear` and the panel warns first rather than silently unconfiguring the
+ * environment. Only an operator-set id can be cleared: a bundled one is part of
+ * the build, and an empty box against it would be a button that does nothing.
  */
 export function clientIdSaveIntent(input: string, google: GoogleClientState): ClientIdSaveIntent {
   if (input.trim().length > 0) return "save";
-  return google.configured ? "clear" : "unchanged";
+  return google.source === "operator" ? "clear" : "unchanged";
 }
 
 export interface AnarlogPresentation {
@@ -212,7 +225,7 @@ export function connectBlockedReason(input: ConnectAvailabilityInput): string | 
       return "Google sign-in finishes on a loopback address on this environment's machine, which this browser cannot reach. Open Nomior Code on that machine to connect.";
     }
     if (!google.configured) {
-      return "Add a Google OAuth client id above first. There is no bundled one.";
+      return "This build ships no Google client id. Add one under Advanced first.";
     }
     return null;
   }
@@ -250,6 +263,21 @@ export function authorizationUrlToOpen(raw: string | null): string | null {
     return null;
   }
   return parsed.protocol === "http:" || parsed.protocol === "https:" ? trimmed : null;
+}
+
+/**
+ * What the account list looks like right now, as one comparable string.
+ *
+ * The page watches for a connection it cannot see land — the sign-in finishes
+ * in a browser, the first sync finishes on the server — and this is how it
+ * tells "nothing yet" from "something changed" without re-rendering on every
+ * poll. Both ids and sync times are in it, so a new account and a first sync
+ * of an existing one are each a change.
+ */
+export function accountsSignature(accounts: readonly ConnectorAccountItem[]): string {
+  return accounts
+    .map((account) => `${account.id}:${account.status}:${account.lastSyncedAt ?? ""}`)
+    .join("|");
 }
 
 /** Sync's result, said in words. Zero is a real answer, not a failure. */

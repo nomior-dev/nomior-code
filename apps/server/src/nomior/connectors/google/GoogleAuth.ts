@@ -87,8 +87,13 @@ export const buildGoogleAuthorizationUrl = (input: BuildGoogleAuthorizationUrlIn
   url.searchParams.set("code_challenge_method", "S256");
   // Offline access yields the refresh token the background sync loops need;
   // consent is forced so re-connecting an account re-issues one.
+  //
+  // `select_account` is what makes a second account possible at all. Without
+  // it Google silently authorizes whichever account the browser is already
+  // signed into, so "connect another account" would keep returning the first
+  // one and the unified multi-account calendar could never be built.
   url.searchParams.set("access_type", "offline");
-  url.searchParams.set("prompt", "consent");
+  url.searchParams.set("prompt", "consent select_account");
   if (input.loginHint !== undefined) {
     url.searchParams.set("login_hint", input.loginHint);
   }

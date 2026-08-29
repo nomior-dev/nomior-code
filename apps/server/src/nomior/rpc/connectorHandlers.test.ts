@@ -30,7 +30,14 @@ import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as ConnectorAccountStore from "../connectors/ConnectorAccountStore.ts";
 import * as ConnectorCursorStore from "../connectors/ConnectorCursorStore.ts";
 import * as ConnectorSyncRunStore from "../connectors/ConnectorSyncRunStore.ts";
-import { ConnectorAccountId, ConnectorDriverKind } from "../connectors/Records.ts";
+import { ConnectorContextIngest } from "../connectors/ContextIngestAdapter.ts";
+import * as CalendarEventStore from "../connectors/calendar/CalendarEventStore.ts";
+import {
+  ConnectorAccountId,
+  ConnectorDriverKind,
+  type ConnectorRecord,
+} from "../connectors/Records.ts";
+import { NomiorSourceId } from "../context/Model.ts";
 import { ANARLOG_SCHEMA_VERSION_CEILING } from "../connectors/anarlog/AnarlogSchema.ts";
 import * as GoogleClientIdStore from "../connectors/google/GoogleClientIdStore.ts";
 import * as GoogleTokenVault from "../connectors/google/GoogleTokenVault.ts";
@@ -46,6 +53,34 @@ const SecretStoreTest = ServerSecretStore.layer.pipe(
   Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "nomior-connectors-test-" })),
 );
 
+/**
+ * Titles the first sync a connect runs put through the ingest, newest last.
+ *
+ * The real adapter is the context engine's own test surface; here it stands in
+ * so that "connect synced the account" is an assertion about records rather
+ * than about wall-clock time.
+ */
+const ingestedTitles: string[] = [];
+
+const recordIngest = (record: ConnectorRecord) =>
+  Effect.sync(() => {
+    ingestedTitles.push(record.source.title);
+    return {
+      sourceId: NomiorSourceId.make(record.source.provenance.externalId),
+      chunkIds: [],
+      replacedSourceId: null,
+      canonicalText: "",
+    };
+  });
+
+const IngestRecording = Layer.succeed(
+  ConnectorContextIngest,
+  ConnectorContextIngest.of({
+    ingestRecord: recordIngest,
+    ingestBatch: (records) => Effect.forEach(records, recordIngest),
+  }),
+);
+
 const layer = it.layer(
   Layer.mergeAll(
     ConnectorAccountStore.layer,
@@ -56,6 +91,11 @@ const layer = it.layer(
     // `connect` needs it in context even on the paths that refuse before
     // reaching Google; nothing here ever calls it, so nothing loads the SDK.
     GoogleTokenPortLive,
+    // Connecting runs the account's first sync, so the whole sync runner
+    // environment has to be here: every built-in driver's dependencies, not
+    // only the one driver a given test connects.
+    CalendarEventStore.layer,
+    IngestRecording,
   ).pipe(
     Layer.provide(SecretStoreTest),
     Layer.provideMerge(SqlitePersistenceMemory),
@@ -78,7 +118,16 @@ const withTempDir = <A, E, R>(use: (dir: string) => Effect.Effect<A, E, R>) =>
     (dir) => Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true })),
   );
 
-/** The minimum an Anarlog store needs for the detector: a migration ledger. */
+const ANARLOG_SESSION_TITLE = "Weekly Planning";
+
+/**
+ * An Anarlog store the detector accepts and the driver can read.
+ *
+ * The migration ledger is all detection looks at, but connecting now runs the
+ * account's first sync, so the store also carries the tables that sync reads
+ * and one session for it to find. `AnarlogDriver.test.ts` owns the deep
+ * coverage of those rows; this is the shallowest store that ingests anything.
+ */
 const seedAnarlogStore = (dir: string, version: bigint): string => {
   const storePath = NodePath.join(dir, "app.db");
   const db = new NodeSqlite.DatabaseSync(storePath);
@@ -91,8 +140,54 @@ const seedAnarlogStore = (dir: string, version: bigint): string => {
       checksum BLOB,
       execution_time INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      started_at TEXT NOT NULL DEFAULT '',
+      ended_at TEXT NOT NULL DEFAULT '',
+      event_id TEXT NOT NULL DEFAULT '',
+      external_event_id TEXT NOT NULL DEFAULT '',
+      series_id TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT '',
+      deleted_at TEXT
+    );
+    CREATE TABLE transcripts (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL DEFAULT '',
+      started_at_ms INTEGER NOT NULL DEFAULT 0,
+      words_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT '',
+      deleted_at TEXT
+    );
+    CREATE TABLE session_documents (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'note',
+      title TEXT NOT NULL DEFAULT '',
+      body_format TEXT NOT NULL DEFAULT 'prosemirror_json',
+      body TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT '',
+      deleted_at TEXT
+    );
+    CREATE TABLE session_participants (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL DEFAULT '',
+      display_name TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT '',
+      deleted_at TEXT
+    );
   `);
   db.prepare("INSERT INTO _sqlx_migrations (version) VALUES (?)").run(version);
+  db.prepare(
+    `INSERT INTO sessions (id, title, started_at, ended_at, updated_at)
+     VALUES ('s1', ?, '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', '2026-08-24T11:05:00.000Z')`,
+  ).run(ANARLOG_SESSION_TITLE);
+  db.prepare(
+    `INSERT INTO session_documents (id, session_id, kind, title, body_format, body, updated_at)
+     VALUES ('d1', 's1', 'note', 'Notes', 'markdown', 'Decision: ship it.', '2026-08-24T11:02:00.000Z')`,
+  ).run();
   db.close();
   return storePath;
 };
@@ -305,6 +400,7 @@ describe("connector handlers over real stores", () => {
         Effect.gen(function* () {
           const accounts = yield* ConnectorAccountStore.ConnectorAccountStore;
           const clientIds = yield* GoogleClientIdStore.GoogleClientIdStore;
+          ingestedTitles.length = 0;
           const storePath = seedAnarlogStore(dir, ANARLOG_SCHEMA_VERSION_CEILING);
           // A prior row in `error` is the reconnect case, and it is also how the
           // test pins the store location without stubbing the platform's
@@ -329,6 +425,13 @@ describe("connector handlers over real stores", () => {
           assert.strictEqual(stored[0]!.accountId, accountId);
           assert.strictEqual(stored[0]!.status, "connected");
           assert.strictEqual(stored[0]!.displayName, storePath);
+
+          // Connecting is the whole setup step: the account arrives synced, so
+          // nothing waits on the user finding the Sync button afterwards.
+          // The session and its note are two sources, as they are for a Sync.
+          assert.deepStrictEqual(ingestedTitles, [ANARLOG_SESSION_TITLE, "Notes"]);
+          const syncRuns = yield* ConnectorSyncRunStore.ConnectorSyncRunStore;
+          assert.isTrue((yield* syncRuns.lastSyncedAt()).has(accountId));
 
           yield* accounts.remove(accountId);
         }),

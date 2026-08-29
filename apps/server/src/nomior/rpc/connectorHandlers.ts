@@ -53,12 +53,28 @@ import {
   googleClientIdHint,
   type GoogleClientIdStore,
 } from "../connectors/google/GoogleClientIdStore.ts";
+import { bundledGoogleClientId } from "../connectors/google/bundledClientId.ts";
 import type { GoogleTokenVault } from "../connectors/google/GoogleTokenVault.ts";
 import {
   GmailPortLive,
   GoogleCalendarPortLive,
   GoogleClientConfig,
 } from "../connectors/google/googleapisRuntime.ts";
+
+/**
+ * The Google ports, built for one call rather than at layer time.
+ *
+ * The client id they need is a value in a store and can be unset, and a layer
+ * that failed on an unset id would take the whole websocket connection down on
+ * first run. Null is the Anarlog path, whose driver never reads the config but
+ * still needs the union of every built-in driver's environment present.
+ */
+const googlePortsFor = (clientId: string | null) =>
+  Layer.mergeAll(GoogleCalendarPortLive, GmailPortLive).pipe(
+    Layer.provide(
+      Layer.succeed(GoogleClientConfig, GoogleClientConfig.of({ clientId: clientId ?? "" })),
+    ),
+  );
 
 /**
  * Failures that describe the request rather than the moment: retrying sends
@@ -256,9 +272,17 @@ export const listConnectors = Effect.fn("nomior.rpc.listConnectors")(function* (
     );
   }
 
+  // An operator-set id wins over the bundled one: pointing an environment at
+  // your own Google Cloud project is the whole reason to set it.
+  const effectiveClientId = Option.isSome(clientId) ? clientId.value : bundledGoogleClientId;
   const google = {
-    configured: Option.isSome(clientId),
-    clientIdHint: Option.isNone(clientId) ? null : googleClientIdHint(clientId.value),
+    configured: effectiveClientId !== null,
+    source: Option.isSome(clientId)
+      ? "operator"
+      : bundledGoogleClientId === null
+        ? "none"
+        : "bundled",
+    clientIdHint: effectiveClientId === null ? null : googleClientIdHint(effectiveClientId),
   } satisfies NomiorGoogleClientState;
 
   return {
@@ -298,6 +322,25 @@ export interface ConnectorConnectDeps {
   readonly clientIds: GoogleClientIdStore["Service"];
   readonly canStartLocalOAuth: boolean;
 }
+
+/**
+ * The sync a freshly connected account runs on its own.
+ *
+ * Connecting and then having nothing to show until the user finds the Sync
+ * button is the whole setup cost of this page, so the first run is not asked
+ * for. Its failure is not the connect's failure: an account that is connected
+ * but unsynced is recoverable from the Sync button beside it, where refusing
+ * the connect would throw away a credential the user just granted.
+ *
+ * Google's call site is already inside the fiber that waits for the redirect,
+ * so this stays inline: Anarlog reads a local file and finishes before connect
+ * answers, and Google's runs in the background it was already in.
+ */
+const firstSync = (account: ConnectorAccount, clientId: string | null) =>
+  runConnectorSync(account).pipe(
+    Effect.provide(googlePortsFor(clientId)),
+    Effect.ignoreCause({ log: true }),
+  );
 
 /** Slug-shaped and unique: `ConnectorAccountId` refuses anything else. */
 const makeAccountId = Effect.fn("nomior.rpc.makeAccountId")(function* (kind: string) {
@@ -349,17 +392,19 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
       (yield* makeAccountId(input.kind).pipe(
         Effect.mapError(failed("Could not record the Anarlog store.", true)),
       ));
+    const account: ConnectorAccount = {
+      accountId,
+      driverKind: ANARLOG_KIND,
+      displayName: state.storePath,
+      config: { storePath: state.storePath },
+      status: "connected",
+      createdAt: now,
+      updatedAt: now,
+    };
     yield* deps.accounts
-      .upsert({
-        accountId,
-        driverKind: ANARLOG_KIND,
-        displayName: state.storePath,
-        config: { storePath: state.storePath },
-        status: "connected",
-        createdAt: now,
-        updatedAt: now,
-      })
+      .upsert(account)
       .pipe(Effect.mapError(failed("Could not record the Anarlog store.", true)));
+    yield* firstSync(account, null);
     return { authorizationUrl: null };
   }
   if (!deps.canStartLocalOAuth) {
@@ -371,10 +416,12 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
   const stored = yield* deps.clientIds.get.pipe(
     Effect.mapError(failed("The Google client id is unreadable.", true)),
   );
-  if (Option.isNone(stored)) {
-    return yield* refuse("Set a Google OAuth client id before connecting an account.");
+  const clientId = Option.isSome(stored) ? stored.value : bundledGoogleClientId;
+  if (clientId === null) {
+    return yield* refuse(
+      "This build ships no Google client id. Add one under Advanced to connect an account.",
+    );
   }
-  const clientId = stored.value;
   const accountId = yield* makeAccountId(input.kind).pipe(
     Effect.mapError(failed("Could not start Google authorization.", true)),
   );
@@ -393,21 +440,28 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
 
   const driverKind = ConnectorDriverKind.make(input.kind);
   yield* Effect.gen(function* () {
-    yield* completeGoogleLoopbackAuthorization({ accountId, clientId, handle });
-    const now = DateTime.formatIso(yield* DateTime.now);
-    yield* deps.accounts.upsert({
-      accountId,
-      driverKind,
-      // Naming the account after its address would need a profile read the
-      // Calendar port does not expose; the panel falls back to the id.
-      displayName: null,
-      config: {},
-      status: "connected",
-      createdAt: now,
-      updatedAt: now,
-    });
+    const account = yield* Effect.gen(function* () {
+      yield* completeGoogleLoopbackAuthorization({ accountId, clientId, handle });
+      const now = DateTime.formatIso(yield* DateTime.now);
+      const account: ConnectorAccount = {
+        accountId,
+        driverKind,
+        // Naming the account after its address would need a profile read the
+        // Calendar port does not expose; the panel falls back to the id.
+        displayName: null,
+        config: {},
+        status: "connected",
+        createdAt: now,
+        updatedAt: now,
+      };
+      yield* deps.accounts.upsert(account);
+      return account;
+      // The loopback listener is done the moment the redirect is exchanged, so
+      // it is closed here rather than held open for the sync that follows.
+    }).pipe(Effect.onExit((exit) => Scope.close(scope, exit)));
+
+    yield* firstSync(account, clientId);
   }).pipe(
-    Effect.onExit((exit) => Scope.close(scope, exit)),
     // Nobody is waiting: the RPC answered with the URL already, so a failure
     // here can only be seen in the log and in the account that never appears.
     Effect.ignoreCause({ log: true }),
@@ -493,22 +547,13 @@ export const syncConnector = Effect.fn("nomior.rpc.syncConnector")(function* (
     Effect.mapError(failed("The Google client id is unreadable.", true)),
   );
   const isGoogle = account.value.driverKind !== ANARLOG_KIND;
-  if (isGoogle && Option.isNone(clientId)) {
+  const effectiveClientId = Option.isSome(clientId) ? clientId.value : bundledGoogleClientId;
+  if (isGoogle && effectiveClientId === null) {
     return yield* refuse("Set a Google OAuth client id before syncing a Google account.");
   }
 
-  const googlePorts = Layer.mergeAll(GoogleCalendarPortLive, GmailPortLive).pipe(
-    Layer.provide(
-      Layer.succeed(
-        GoogleClientConfig,
-        // Empty only on the Anarlog path, which never reads it.
-        GoogleClientConfig.of({ clientId: Option.getOrElse(clientId, () => "") }),
-      ),
-    ),
-  );
-
   const result = yield* runConnectorSync(account.value).pipe(
-    Effect.provide(googlePorts),
+    Effect.provide(googlePortsFor(effectiveClientId)),
     Effect.mapError(failedByTag("The sync could not be completed.")),
   );
   return { ingested: result.ingested } satisfies NomiorConnectorSyncResult;

@@ -263,7 +263,7 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
       google =
         trimmed.length === 0
           ? GOOGLE_CLIENT_UNCONFIGURED
-          : { configured: true, clientIdHint: trimmed.slice(-4) };
+          : { configured: true, source: "operator", clientIdHint: trimmed.slice(-4) };
       return Promise.resolve();
     },
     // Sample data has no OAuth server and no machine to read a store on.

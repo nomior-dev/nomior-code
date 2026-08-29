@@ -1,11 +1,18 @@
-import { AlertTriangleIcon, LinkIcon, MonitorOffIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+  AlertTriangleIcon,
+  ChevronRightIcon,
+  LinkIcon,
+  MonitorOffIcon,
+  RefreshCwIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardPanel } from "../components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -13,6 +20,7 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 import { readLocalApi } from "../localApi";
 import {
+  accountsSignature,
   anarlogPresentation,
   authorizationUrlToOpen,
   clientIdHintLabel,
@@ -23,6 +31,7 @@ import {
   formatIngestedCount,
   formatLastSynced,
   isGoogleConnector,
+  opensAdvancedByDefault,
   orderAccounts,
   showsDetail,
   statusPresentation,
@@ -36,7 +45,15 @@ import { usePortData } from "./usePortData";
 /** A value the connector never supplied reads as muted italics, everywhere. */
 const UNKNOWN_CLASS = "text-muted-foreground/80 italic";
 
-const GOOGLE_CONNECTOR_KINDS: readonly ConnectorKind[] = ["googleCalendar", "gmail"];
+/**
+ * The kind the one button connects.
+ *
+ * Calendar carries the surface people come here for, and its scope is the one
+ * Google treats as merely sensitive. Gmail is a restricted scope — a separate
+ * consent, and for anyone shipping their own client id a separate security
+ * review — so it stays under Advanced rather than in the default path.
+ */
+const PRIMARY_GOOGLE_KIND: ConnectorKind = "googleCalendar";
 
 /** Scope keys: one action can be in flight, and its result renders where it happened. */
 export const CLIENT_ID_SCOPE = "google-client-id";
@@ -131,11 +148,64 @@ function ConnectRow({
 }
 
 /**
- * The Google OAuth client id. Nomior ships without one on purpose — the id
- * belongs to the operator's own Google Cloud project — so "not configured" is
- * the ordinary first-run state and reads as a setup step, not a failure.
+ * The whole Google setup, when everything is as it should be: one button.
+ *
+ * A release build carries its own OAuth client id, so signing in a second or
+ * third account is the same single press as the first — Google's own account
+ * chooser handles which one. Everything that used to sit here (the client id,
+ * Gmail) moved to Advanced, where a fork that has to supply its own project can
+ * still find it.
  */
 export function GoogleConnectorSection({
+  overview,
+  state,
+  onConnect,
+}: {
+  overview: ConnectorsOverview;
+  state: ConnectorActionState;
+  onConnect: (kind: ConnectorKind) => void;
+}) {
+  const blocked = connectBlockedReason({
+    kind: PRIMARY_GOOGLE_KIND,
+    google: overview.google,
+    anarlog: overview.anarlog,
+    accounts: overview.accounts,
+    canStartLocalOAuth: overview.canStartLocalOAuth,
+  });
+  const scope = connectScope(PRIMARY_GOOGLE_KIND);
+  const isPending = state.pendingScope === scope;
+  const notice = noticeFor(state, scope);
+  const reasonId = "nomior-connect-reason-google";
+
+  return (
+    <section aria-label="Google" className="flex flex-col gap-2">
+      <Button
+        aria-describedby={blocked === null ? undefined : reasonId}
+        className="self-start"
+        disabled={blocked !== null || isPending}
+        onClick={() => onConnect(PRIMARY_GOOGLE_KIND)}
+        size="sm"
+      >
+        {isPending ? <Spinner className="size-3.5" /> : <LinkIcon className="size-3.5" />}
+        {isPending ? "Waiting for Google" : "Connect Google account"}
+      </Button>
+      {blocked === null ? null : (
+        <p className="text-xs text-muted-foreground" id={reasonId}>
+          {blocked}
+        </p>
+      )}
+      {notice === null ? null : <NoticeLine notice={notice} />}
+    </section>
+  );
+}
+
+/**
+ * The setup nobody should need: the OAuth client id, and Gmail.
+ *
+ * Collapsed unless this build has no client id of its own, which is the one
+ * case where the page cannot do anything until someone fills it in.
+ */
+export function AdvancedConnectorSection({
   overview,
   state,
   onSaveClientId,
@@ -146,87 +216,82 @@ export function GoogleConnectorSection({
   onSaveClientId: (value: string) => void;
   onConnect: (kind: ConnectorKind) => void;
 }) {
+  const [isOpen, setIsOpen] = useState(() => opensAdvancedByDefault(overview.google));
   const [draft, setDraft] = useState("");
   const intent = clientIdSaveIntent(draft, overview.google);
   const isSaving = state.pendingScope === CLIENT_ID_SCOPE;
   const notice = noticeFor(state, CLIENT_ID_SCOPE);
 
   return (
-    <section aria-label="Google" className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-sm font-medium">Google</h2>
-        <p className="text-sm text-muted-foreground">
-          Calendar and Gmail sign in with an OAuth client you own. Nomior bundles no client id, so
-          nothing here talks to Google until you add one.
-        </p>
-      </div>
-
-      <Card>
-        <CardPanel className="flex flex-col gap-3 p-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="nomior-google-client-id">OAuth client id</Label>
-              <Badge size="sm" variant={overview.google.configured ? "success" : "secondary"}>
-                {clientIdHintLabel(overview.google)}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Create an OAuth 2.0 Client ID of type “Desktop app” in your own Google Cloud project,
-              then paste the client id here. It is stored on this environment, never in the browser.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                autoComplete="off"
-                className="sm:flex-1"
-                disabled={isSaving}
-                id="nomior-google-client-id"
-                onChange={(event) => setDraft(event.currentTarget.value)}
-                placeholder={
-                  overview.google.configured
-                    ? "Paste a client id to replace the one in use"
-                    : "000000000000-xxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"
-                }
-                spellCheck={false}
-                value={draft}
-              />
-              <Button
-                className="sm:self-start"
-                disabled={intent === "unchanged" || isSaving}
-                onClick={() => {
-                  onSaveClientId(draft);
-                  setDraft("");
-                }}
-                size="sm"
-                variant={intent === "clear" ? "destructive-outline" : "outline"}
-              >
-                {isSaving ? <Spinner className="size-3.5" /> : null}
-                {intent === "clear" ? "Clear client id" : "Save"}
-              </Button>
-            </div>
-            {intent === "clear" ? (
-              <p className="text-xs text-destructive-foreground">
-                The box is empty, so saving clears the client id. Google connectors stop being
-                connectable until you add one; accounts already connected keep syncing on the tokens
-                they hold.
+    <Collapsible onOpenChange={setIsOpen} open={isOpen}>
+      <CollapsibleTrigger
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        render={<button type="button" />}
+      >
+        <ChevronRightIcon className={cn("size-3.5 transition-transform", isOpen && "rotate-90")} />
+        Advanced
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Card className="mt-3">
+          <CardPanel className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="nomior-google-client-id">OAuth client id</Label>
+                <Badge size="sm" variant={overview.google.configured ? "success" : "secondary"}>
+                  {clientIdHintLabel(overview.google)}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Point this environment at your own Google Cloud project instead of the built-in
+                client: create an OAuth 2.0 Client ID of type “Desktop app” and paste it here. It is
+                stored on this environment, never in the browser.
               </p>
-            ) : null}
-            {notice === null ? null : <NoticeLine notice={notice} />}
-          </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  autoComplete="off"
+                  className="sm:flex-1"
+                  disabled={isSaving}
+                  id="nomior-google-client-id"
+                  onChange={(event) => setDraft(event.currentTarget.value)}
+                  placeholder={
+                    overview.google.configured
+                      ? "Paste a client id to replace the one in use"
+                      : "000000000000-xxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+                  }
+                  spellCheck={false}
+                  value={draft}
+                />
+                <Button
+                  className="sm:self-start"
+                  disabled={intent === "unchanged" || isSaving}
+                  onClick={() => {
+                    onSaveClientId(draft);
+                    setDraft("");
+                  }}
+                  size="sm"
+                  variant={intent === "clear" ? "destructive-outline" : "outline"}
+                >
+                  {isSaving ? <Spinner className="size-3.5" /> : null}
+                  {intent === "clear" ? "Clear client id" : "Save"}
+                </Button>
+              </div>
+              {intent === "clear" ? (
+                <p className="text-xs text-destructive-foreground">
+                  The box is empty, so saving clears this environment's client id and Google falls
+                  back to the one the build ships with, if it has one. Accounts already connected
+                  keep syncing on the tokens they hold.
+                </p>
+              ) : null}
+              {notice === null ? null : <NoticeLine notice={notice} />}
+            </div>
 
-          <div className="flex flex-col divide-y divide-border border-t border-border">
-            {GOOGLE_CONNECTOR_KINDS.map((kind) => (
-              <ConnectRow
-                key={kind}
-                kind={kind}
-                onConnect={onConnect}
-                overview={overview}
-                state={state}
-              />
-            ))}
-          </div>
-        </CardPanel>
-      </Card>
-    </section>
+            <div className="flex flex-col border-t border-border">
+              <ConnectRow kind="gmail" onConnect={onConnect} overview={overview} state={state} />
+            </div>
+          </CardPanel>
+        </Card>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -247,14 +312,8 @@ export function AnarlogConnectorSection({
   const presentation = anarlogPresentation(overview.anarlog);
 
   return (
-    <section aria-label="Anarlog" className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-sm font-medium">Anarlog</h2>
-        <p className="text-sm text-muted-foreground">
-          Meetings come from Anarlog's own local store. Nomior opens it read-only and never writes
-          to it.
-        </p>
-      </div>
+    <section aria-label="Anarlog" className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium">Anarlog</h2>
 
       <Card>
         <CardPanel className="flex flex-col gap-3 p-4">
@@ -469,6 +528,16 @@ function ConnectorsSkeleton() {
   );
 }
 
+/** How often the page re-reads while it waits for a connection to land. */
+const WATCH_INTERVAL_MS = 2_000;
+
+/**
+ * How long it keeps waiting: long enough for a consent screen with a password
+ * and a second factor in it, short enough that an abandoned sign-in stops
+ * polling the environment on its own.
+ */
+const WATCH_TIMEOUT_MS = 5 * 60_000;
+
 export function ConnectorsPanel() {
   const port = useNomiorPort(fixtureNomiorPort);
 
@@ -477,6 +546,57 @@ export function ConnectorsPanel() {
 
   const [pendingScope, setPendingScope] = useState<string | null>(null);
   const [notice, setNotice] = useState<ActionNotice | null>(null);
+
+  // Bumped to abandon the watch below: a second connect supersedes the first,
+  // and unmounting ends it rather than leaving it polling a page nobody is on.
+  const watchToken = useRef(0);
+  useEffect(() => () => void (watchToken.current += 1), []);
+
+  /**
+   * Watch for a connection this page cannot see land. Signing in finishes in a
+   * browser and the account's first sync finishes on the server, so the result
+   * arrives without anything happening here — the alternative is telling the
+   * user to come back and press something, which is the friction this page is
+   * meant not to have.
+   *
+   * It re-reads only when something actually changed, stops once every account
+   * it did not know about has synced, and gives up quietly at the deadline:
+   * nothing on screen is wrong afterwards, the page has only stopped looking.
+   */
+  const watchForConnection = useCallback(
+    (before: ConnectorsOverview) => {
+      const token = (watchToken.current += 1);
+      const knownIds = new Set(before.accounts.map((account) => account.id));
+      const deadline = Date.now() + WATCH_TIMEOUT_MS;
+      let seen = accountsSignature(before.accounts);
+
+      const tick = async () => {
+        if (token !== watchToken.current) return;
+        let next: ConnectorsOverview | null = null;
+        try {
+          next = await port.listConnectors();
+        } catch {
+          // A failed poll is not a failed connection: keep watching.
+        }
+        if (token !== watchToken.current) return;
+        if (next !== null) {
+          const signature = accountsSignature(next.accounts);
+          if (signature !== seen) {
+            seen = signature;
+            reload();
+          }
+          const arrived = next.accounts.filter((account) => !knownIds.has(account.id));
+          if (arrived.length > 0 && arrived.every((account) => account.lastSyncedAt !== null)) {
+            return;
+          }
+        }
+        if (Date.now() < deadline) window.setTimeout(() => void tick(), WATCH_INTERVAL_MS);
+      };
+
+      window.setTimeout(() => void tick(), WATCH_INTERVAL_MS);
+    },
+    [port, reload],
+  );
 
   /**
    * Every write goes through here so none of them can end silently: the scope
@@ -521,6 +641,7 @@ export function ConnectorsPanel() {
 
   const handleConnect = useCallback(
     (kind: ConnectorKind) => {
+      if (overview === null) return;
       run(connectScope(kind), async () => {
         const url = authorizationUrlToOpen(await port.connectConnector(kind));
         if (url === null) {
@@ -529,15 +650,16 @@ export function ConnectorsPanel() {
           if (isGoogleConnector(kind)) {
             throw new Error("The server did not return a sign-in link to open.");
           }
-          return `${connectorKindLabel(kind)} connected. Sync it to ingest what it holds.`;
+          return `${connectorKindLabel(kind)} connected.`;
         }
         const api = readLocalApi();
         if (api === undefined) throw new Error("This client cannot open a browser window.");
         await api.shell.openExternal(url);
-        return "Sign-in opened in your browser. Finish it there, then come back and Sync.";
+        watchForConnection(overview);
+        return "Finish signing in with Google. The account appears here on its own.";
       });
     },
-    [port, run],
+    [overview, port, run, watchForConnection],
   );
 
   const handleSync = useCallback(
@@ -587,16 +709,9 @@ export function ConnectorsPanel() {
         <>
           {overview.canStartLocalOAuth ? null : <RemoteOAuthNotice />}
 
-          <GoogleConnectorSection
-            onConnect={handleConnect}
-            onSaveClientId={handleSaveClientId}
-            overview={overview}
-            state={state}
-          />
+          <GoogleConnectorSection onConnect={handleConnect} overview={overview} state={state} />
 
-          <AnarlogConnectorSection onConnect={handleConnect} overview={overview} state={state} />
-
-          <section aria-label="Connected accounts" className="flex flex-col gap-1">
+          <section aria-label="Connected accounts" className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-medium">Connected accounts</h2>
               {overview.accounts.some((account) => account.status !== "connected") ? (
@@ -606,19 +721,22 @@ export function ConnectorsPanel() {
                 </Badge>
               ) : null}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Sync pulls now instead of waiting for the next scheduled run. Disconnect drops the
-              stored token and leaves everything already ingested in place.
-            </p>
-            <div className="mt-1">
-              <ConnectorAccountList
-                onDisconnect={handleDisconnect}
-                onSync={handleSync}
-                overview={overview}
-                state={state}
-              />
-            </div>
+            <ConnectorAccountList
+              onDisconnect={handleDisconnect}
+              onSync={handleSync}
+              overview={overview}
+              state={state}
+            />
           </section>
+
+          <AnarlogConnectorSection onConnect={handleConnect} overview={overview} state={state} />
+
+          <AdvancedConnectorSection
+            onConnect={handleConnect}
+            onSaveClientId={handleSaveClientId}
+            overview={overview}
+            state={state}
+          />
         </>
       )}
     </div>
