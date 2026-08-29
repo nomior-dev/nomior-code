@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PairRouteImport } from './routes/pair'
+import { Route as NomiorRouteImport } from './routes/nomior'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
@@ -25,6 +26,10 @@ import { Route as SettingsConnectionsRouteImport } from './routes/settings.conne
 import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as ProjectsProjectKeyRouteImport } from './routes/projects.$projectKey'
+import { Route as NomiorReviewRouteImport } from './routes/nomior.review'
+import { Route as NomiorInstancesRouteImport } from './routes/nomior.instances'
+import { Route as NomiorContextRouteImport } from './routes/nomior.context'
+import { Route as NomiorCalendarRouteImport } from './routes/nomior.calendar'
 import { Route as ConnectCallbackRouteImport } from './routes/connect_.callback'
 import { Route as ChatPullRequestsRouteImport } from './routes/_chat.pull-requests'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
@@ -43,6 +48,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const PairRoute = PairRouteImport.update({
   id: '/pair',
   path: '/pair',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NomiorRoute = NomiorRouteImport.update({
+  id: '/nomior',
+  path: '/nomior',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRoute = ConnectRouteImport.update({
@@ -109,6 +119,26 @@ const ProjectsProjectKeyRoute = ProjectsProjectKeyRouteImport.update({
   path: '/projects/$projectKey',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NomiorReviewRoute = NomiorReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => NomiorRoute,
+} as any)
+const NomiorInstancesRoute = NomiorInstancesRouteImport.update({
+  id: '/instances',
+  path: '/instances',
+  getParentRoute: () => NomiorRoute,
+} as any)
+const NomiorContextRoute = NomiorContextRouteImport.update({
+  id: '/context',
+  path: '/context',
+  getParentRoute: () => NomiorRoute,
+} as any)
+const NomiorCalendarRoute = NomiorCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => NomiorRoute,
+} as any)
 const ConnectCallbackRoute = ConnectCallbackRouteImport.update({
   id: '/connect_/callback',
   path: '/connect/callback',
@@ -134,11 +164,16 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/connect': typeof ConnectRoute
+  '/nomior': typeof NomiorRouteWithChildren
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
   '/usage': typeof UsageRoute
   '/pull-requests': typeof ChatPullRequestsRoute
   '/connect/callback': typeof ConnectCallbackRoute
+  '/nomior/calendar': typeof NomiorCalendarRoute
+  '/nomior/context': typeof NomiorContextRoute
+  '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -154,11 +189,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
+  '/nomior': typeof NomiorRouteWithChildren
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
   '/usage': typeof UsageRoute
   '/pull-requests': typeof ChatPullRequestsRoute
   '/connect/callback': typeof ConnectCallbackRoute
+  '/nomior/calendar': typeof NomiorCalendarRoute
+  '/nomior/context': typeof NomiorContextRoute
+  '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -177,11 +217,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/connect': typeof ConnectRoute
+  '/nomior': typeof NomiorRouteWithChildren
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
   '/usage': typeof UsageRoute
   '/_chat/pull-requests': typeof ChatPullRequestsRoute
   '/connect_/callback': typeof ConnectCallbackRoute
+  '/nomior/calendar': typeof NomiorCalendarRoute
+  '/nomior/context': typeof NomiorContextRoute
+  '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/archived': typeof SettingsArchivedRoute
@@ -201,11 +246,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/connect'
+    | '/nomior'
     | '/pair'
     | '/settings'
     | '/usage'
     | '/pull-requests'
     | '/connect/callback'
+    | '/nomior/calendar'
+    | '/nomior/context'
+    | '/nomior/instances'
+    | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
     | '/settings/archived'
@@ -221,11 +271,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/connect'
+    | '/nomior'
     | '/pair'
     | '/settings'
     | '/usage'
     | '/pull-requests'
     | '/connect/callback'
+    | '/nomior/calendar'
+    | '/nomior/context'
+    | '/nomior/instances'
+    | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
     | '/settings/archived'
@@ -243,11 +298,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_chat'
     | '/connect'
+    | '/nomior'
     | '/pair'
     | '/settings'
     | '/usage'
     | '/_chat/pull-requests'
     | '/connect_/callback'
+    | '/nomior/calendar'
+    | '/nomior/context'
+    | '/nomior/instances'
+    | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
     | '/settings/archived'
@@ -266,6 +326,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   ConnectRoute: typeof ConnectRoute
+  NomiorRoute: typeof NomiorRouteWithChildren
   PairRoute: typeof PairRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   UsageRoute: typeof UsageRoute
@@ -294,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/pair'
       fullPath: '/pair'
       preLoaderRoute: typeof PairRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nomior': {
+      id: '/nomior'
+      path: '/nomior'
+      fullPath: '/nomior'
+      preLoaderRoute: typeof NomiorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/connect': {
@@ -387,6 +455,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nomior/review': {
+      id: '/nomior/review'
+      path: '/review'
+      fullPath: '/nomior/review'
+      preLoaderRoute: typeof NomiorReviewRouteImport
+      parentRoute: typeof NomiorRoute
+    }
+    '/nomior/instances': {
+      id: '/nomior/instances'
+      path: '/instances'
+      fullPath: '/nomior/instances'
+      preLoaderRoute: typeof NomiorInstancesRouteImport
+      parentRoute: typeof NomiorRoute
+    }
+    '/nomior/context': {
+      id: '/nomior/context'
+      path: '/context'
+      fullPath: '/nomior/context'
+      preLoaderRoute: typeof NomiorContextRouteImport
+      parentRoute: typeof NomiorRoute
+    }
+    '/nomior/calendar': {
+      id: '/nomior/calendar'
+      path: '/calendar'
+      fullPath: '/nomior/calendar'
+      preLoaderRoute: typeof NomiorCalendarRouteImport
+      parentRoute: typeof NomiorRoute
+    }
     '/connect_/callback': {
       id: '/connect_/callback'
       path: '/connect/callback'
@@ -434,6 +530,23 @@ const ChatRouteChildren: ChatRouteChildren = {
 
 const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
 
+interface NomiorRouteChildren {
+  NomiorCalendarRoute: typeof NomiorCalendarRoute
+  NomiorContextRoute: typeof NomiorContextRoute
+  NomiorInstancesRoute: typeof NomiorInstancesRoute
+  NomiorReviewRoute: typeof NomiorReviewRoute
+}
+
+const NomiorRouteChildren: NomiorRouteChildren = {
+  NomiorCalendarRoute: NomiorCalendarRoute,
+  NomiorContextRoute: NomiorContextRoute,
+  NomiorInstancesRoute: NomiorInstancesRoute,
+  NomiorReviewRoute: NomiorReviewRoute,
+}
+
+const NomiorRouteWithChildren =
+  NomiorRoute._addFileChildren(NomiorRouteChildren)
+
 interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsArchivedRoute: typeof SettingsArchivedRoute
@@ -465,6 +578,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   ConnectRoute: ConnectRoute,
+  NomiorRoute: NomiorRouteWithChildren,
   PairRoute: PairRoute,
   SettingsRoute: SettingsRouteWithChildren,
   UsageRoute: UsageRoute,
