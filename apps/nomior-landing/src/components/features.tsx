@@ -36,7 +36,7 @@ const FEATURES: readonly Feature[] = [
     demo: {
       name: "calendar-week.gif",
       caption:
-        "A week across three connected Google accounts, colour-coded per account; a standup opens straight into its linked transcript.",
+        "A week across two connected Google accounts, colour-coded per account; a standup opens straight into its linked transcript.",
     },
   },
   {
@@ -102,6 +102,7 @@ export function Features() {
               {feature.demo ? (
                 <Reveal delay={0.1}>
                   <DemoFigure
+                    available
                     caption={feature.demo.caption}
                     index={`${String(index + 1).padStart(2, "0")} / 0${FEATURES.length}`}
                     name={feature.demo.name}

@@ -126,7 +126,7 @@ export const DEMO_GIFS: readonly DemoGifSpec[] = [
       { kind: "waitFor", text: "Scheduler" },
       { kind: "hold", ms: 1600 },
       { kind: "click", role: "button", name: "Pin" },
-      { kind: "waitFor", text: "Pinned manually" },
+      { kind: "waitFor", text: "Pinned" },
       { kind: "hold", ms: 2000 },
       { kind: "click", role: "button", name: "Unpin" },
       { kind: "hold", ms: 1400 },
@@ -512,7 +512,9 @@ function locatorFor(page: DemoPage, step: DemoStep): DemoLocator | null {
     case "clickText":
       return page.getByText(step.text).first();
     case "click":
-      return page.getByRole(step.role, { name: step.name }).first();
+      // Exact: the panels put "Pin" and "Unpin" on the same row, and a
+      // substring match would take the wrong one and undo the step.
+      return page.getByRole(step.role, { name: step.name, exact: true }).first();
     case "type":
       return page.getByLabel(step.label).first();
     default:
@@ -533,7 +535,13 @@ async function runStep(page: DemoPage, spec: DemoGifSpec, step: DemoStep): Promi
   if (locator === null) return;
   try {
     await locator.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
-    await locator.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT_MS });
+    // Only steps that act on the element scroll to it. A `waitFor` asserts that
+    // something appeared, and after a write the panel reloads and replaces the
+    // node it matched — scrolling to a node the reload is busy swapping fails
+    // on an element that is merely being re-rendered, not missing.
+    if (step.kind !== "waitFor") {
+      await locator.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT_MS });
+    }
     if (step.kind === "click" || step.kind === "clickText") {
       await locator.click({ timeout: STEP_TIMEOUT_MS });
     } else if (step.kind === "type") {
