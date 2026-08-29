@@ -34,7 +34,6 @@ import {
 } from "../context/evals/RetrievalEval.ts";
 import type { NomiorScope } from "../context/Model.ts";
 import { ContextRetrieval } from "../context/Retrieval.ts";
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import { LegRunner, type ReviewLegConfig } from "../review/Legs.ts";
 import type { PlaybookPresence } from "../review/Playbook.ts";
 import * as ReviewEngine from "../review/ReviewEngine.ts";
@@ -53,7 +52,7 @@ import {
   seedMeetings,
   type SeedFindingSeverity,
 } from "./scenario.ts";
-import { candidateMemories, capsuleScope } from "./sourceInputs.ts";
+import { capsuleScope } from "./sourceInputs.ts";
 
 // ===============================
 // Invariant checks (pure)
@@ -64,7 +63,7 @@ export interface Violation {
     | "budget-exceeded"
     | "scope-leak"
     | "gate-approved-with-blocking-finding"
-    | "unapproved-candidate-retrieved"
+    | "review-memory-missing"
     | "scheduler-picked-exhausted-instance"
     | "recall-gate-missed"
     | "meeting-unlinked";
@@ -146,26 +145,27 @@ export const checkGateDecision = (
       : [];
   });
 
-export interface CandidateObservation {
-  /** Text of every memory candidate still awaiting a decision. */
-  readonly pendingTexts: ReadonlyArray<string>;
-  /** Text of every snippet any query in this run returned. */
-  readonly retrievedTexts: ReadonlyArray<string>;
+export interface ReviewMemoryObservation {
+  /** Verdict line each settled review should have written, built from its own outcome. */
+  readonly expectedTexts: ReadonlyArray<string>;
+  /** Text of every memory the reviews in this run actually wrote. */
+  readonly rememberedTexts: ReadonlyArray<string>;
 }
 
-/** Nothing promotes without approval: a pending candidate is not retrievable. */
-export const checkCandidatePromotion = (
-  observation: CandidateObservation,
-): ReadonlyArray<Violation> =>
-  observation.pendingTexts.flatMap((pending) =>
-    observation.retrievedTexts.some((retrieved) => retrieved.includes(pending))
-      ? [
+/**
+ * A finding becomes memory on its own: there is no approval step, so anything
+ * a settled review reported must be retrievable straight after the run.
+ */
+export const checkReviewMemory = (observation: ReviewMemoryObservation): ReadonlyArray<Violation> =>
+  observation.expectedTexts.flatMap((expected) =>
+    observation.rememberedTexts.some((remembered) => remembered.includes(expected))
+      ? []
+      : [
           {
-            kind: "unapproved-candidate-retrieved" as const,
-            detail: `a pending memory candidate is already retrievable: "${pending.slice(0, 72)}…"`,
+            kind: "review-memory-missing" as const,
+            detail: `a settled review never reached memory: "${expected.slice(0, 72)}…"`,
           },
-        ]
-      : [],
+        ],
   );
 
 export interface SchedulerObservation {
@@ -242,7 +242,7 @@ export interface SimulationReport {
     readonly linked: number;
     readonly needConfirmation: number;
   };
-  readonly newMemoryCandidates: number;
+  readonly reviewMemories: number;
   readonly violations: ReadonlyArray<Violation>;
 }
 
@@ -521,7 +521,14 @@ const simulatedLegRunnerLayer = (
  */
 const SIM_QUEUED_AT = SEED_WEEK_START;
 
-const SIM_REPO = "nomior-dev/nomior-code";
+export const SIM_REPO = "nomior-dev/nomior-code";
+
+/**
+ * The T3 project `SIM_REPO`'s checkout would resolve to. The harness has no
+ * real checkout, so the lookup is provided statically — the mapping is what is
+ * under test here, not git.
+ */
+export const SIM_PROJECT_ID = ProjectId.make("sim-nomior-code");
 
 const simulatedOriginRefs = SIMULATED_REVIEWS.map((review) => `${SIM_REPO}@${review.headSha}`);
 
@@ -534,13 +541,14 @@ const deleteSimulationArtifacts = Effect.gen(function* () {
   `;
   yield* sql`DELETE FROM nomior_review_jobs WHERE head_sha IN ${sql.in(shas)}`;
   yield* sql`
-    DELETE FROM nomior_memory_candidates WHERE origin_ref IN ${sql.in(simulatedOriginRefs)}
+    DELETE FROM nomior_sources
+    WHERE kind = 'memory'
+      AND json_extract(provenance_json, '$.originRef') IN ${sql.in(simulatedOriginRefs)}
   `;
 }).pipe(Effect.orDie);
 
 const runReviewSection = Effect.gen(function* () {
   const script: { current: SimulatedReview } = { current: SIMULATED_REVIEWS[0]! };
-  const candidateStore = yield* MemoryCandidateStore;
 
   // A previous run that died mid-section would leave its rows behind.
   yield* deleteSimulationArtifacts;
@@ -621,23 +629,43 @@ const runReviewSection = Effect.gen(function* () {
     }
   }
 
-  const pendingAfter = yield* candidateStore.list({ status: "pending" });
+  // Read back before the cleanup below removes them: what the reviews wrote is
+  // the evidence that a finding reaches memory with no approval step in the way.
+  const remembered = yield* rememberedFindingTexts;
   yield* deleteSimulationArtifacts;
 
-  // Counted by origin, not as a before/after delta: offers are idempotent, so
-  // a delta would report 4 on the first run and 0 on every run after it.
-  const simulatedOrigins = new Set(simulatedOriginRefs);
+  // Exactly the line `emitMemoryCandidates` writes for a settled review, so a
+  // drift between the engine and this check shows up as a failed invariant.
+  const expectedTexts = lines
+    .filter((line) => line.decision !== "none")
+    .map((line) => `Review verdict ${line.decision}: ${line.reasons.join(" ")}`);
+
   return {
     lines,
-    newMemoryCandidates: pendingAfter.filter(
-      (candidate) => candidate.originRef !== null && simulatedOrigins.has(candidate.originRef),
-    ).length,
-    // Fed back into the promotion check: a finding a review filed is pending,
-    // so it must not turn up in any answer either.
-    pendingTexts: pendingAfter.map((candidate) => candidate.text),
-    violations: checkGateDecision(gateObservations),
+    reviewMemories: remembered.length,
+    violations: [
+      ...checkGateDecision(gateObservations),
+      ...checkReviewMemory({ expectedTexts, rememberedTexts: remembered }),
+    ],
   };
 });
+
+/**
+ * Every `memory` source the simulated reviews wrote, by origin. Read straight
+ * from the broker rather than from a sink receipt: the point is that the text
+ * is in the store the panel and the agent both read.
+ */
+const rememberedFindingTexts = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql<{ readonly text: string }>`
+    SELECT c.text AS "text"
+    FROM nomior_sources s
+    JOIN nomior_chunks c ON c.source_id = s.id AND c.ordinal = 0
+    WHERE s.kind = 'memory'
+      AND json_extract(s.provenance_json, '$.originRef') IN ${sql.in(simulatedOriginRefs)}
+  `;
+  return rows.map((row) => row.text);
+}).pipe(Effect.orDie);
 
 // ===============================
 // Section 4 — scheduler
@@ -779,17 +807,6 @@ export const runSimulation = Effect.fn("nomiorSimulate")(function* () {
   const schedulerSection = yield* runSchedulerSection;
   const meetingSection = yield* runMeetingSection;
 
-  const store = yield* MemoryCandidateStore;
-  const pending = yield* store.list({ status: "pending" });
-  const candidateViolations = checkCandidatePromotion({
-    pendingTexts: [
-      ...candidateMemories.map((memory) => memory.text),
-      ...pending.map((candidate) => candidate.text),
-      ...reviewSection.pendingTexts,
-    ],
-    retrievedTexts: querySection.retrievedTexts,
-  });
-
   return {
     evalTable: evalSection.table,
     macroRecall: evalSection.macroRecall,
@@ -801,14 +818,13 @@ export const runSimulation = Effect.fn("nomiorSimulate")(function* () {
       linked: meetingSection.linked,
       needConfirmation: meetingSection.needConfirmation,
     },
-    newMemoryCandidates: reviewSection.newMemoryCandidates,
+    reviewMemories: reviewSection.reviewMemories,
     violations: [
       ...evalSection.violations,
       ...querySection.violations,
       ...reviewSection.violations,
       ...schedulerSection.violations,
       ...meetingSection.violations,
-      ...candidateViolations,
     ],
   } satisfies SimulationReport;
 });
@@ -856,7 +872,7 @@ export const formatSimulationReport = (report: SimulationReport): string => {
       lines.push(`    · ${reason}`);
     }
   }
-  lines.push(`Review findings filed as pending memory candidates: ${report.newMemoryCandidates}`);
+  lines.push(`Review findings written to memory: ${report.reviewMemories}`);
 
   lines.push(heading("4. Scheduler under simulated rate-limit events"));
   for (const step of report.schedulerSteps) {
@@ -875,7 +891,7 @@ export const formatSimulationReport = (report: SimulationReport): string => {
   if (report.violations.length === 0) {
     lines.push(
       "PASS — token budget held, no scope leaks, no approval over a blocking finding,",
-      "       no pending candidate retrievable, scheduler never picked an exhausted instance.",
+      "       every settled review reached memory, scheduler never picked an exhausted instance.",
     );
   } else {
     for (const violation of report.violations) {

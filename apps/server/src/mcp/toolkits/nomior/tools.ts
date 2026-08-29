@@ -122,7 +122,7 @@ export type ContextDecisionsResult = typeof ContextDecisionsResult.Type;
 
 const ContextRememberParameters = Schema.Struct({
   text: Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(2_000)).annotate({
-    description: "The fact or preference to propose as a memory.",
+    description: "The fact or preference to remember.",
   }),
   scope: ScopeParameter.annotate({
     description: "Nomior project scope id the memory belongs to.",
@@ -130,9 +130,12 @@ const ContextRememberParameters = Schema.Struct({
 });
 
 export const ContextRememberResult = Schema.Struct({
-  candidateId: Schema.String.annotate({ description: "Id of the proposed memory candidate." }),
-  status: Schema.Literal("pending_approval"),
-  note: Schema.String.annotate({ description: "Reminder that promotion needs user approval." }),
+  sourceId: Schema.String.annotate({
+    description: "Id of the memory source; it is searchable immediately.",
+  }),
+  status: Schema.Literals(["remembered", "already-known"]).annotate({
+    description: "`already-known` when this fact was already remembered for this scope.",
+  }),
 });
 export type ContextRememberResult = typeof ContextRememberResult.Type;
 

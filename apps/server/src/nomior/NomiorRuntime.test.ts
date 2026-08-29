@@ -25,7 +25,8 @@ import { EmbeddingWorker } from "./context/Embeddings.ts";
 import { ContextIngest } from "./context/Ingest.ts";
 import { ContextRetrieval } from "./context/Retrieval.ts";
 import { ContextRetrievalPort } from "./context/RetrievalPort.ts";
-import { MemoryCandidateStore } from "./memory/MemoryCandidateStore.ts";
+import { RepositoryIdentityResolver } from "../project/RepositoryIdentityResolver.ts";
+import { MemoryWriter } from "./memory/MemoryWriter.ts";
 import { LegRunner } from "./review/Legs.ts";
 import { MemoryCandidateSink } from "./review/MemoryCandidates.ts";
 import { ReviewJobStore } from "./review/ReviewJobStore.ts";
@@ -43,12 +44,18 @@ const registryStub = Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegi
 
 const database = Layer.provide(SqlitePersistenceMemory, NodeServices.layer);
 
-it.effect("NomiorContextLive builds the broker, the memory store and the MCP port", () =>
+/** No checkout in a test process, so no project's remote ever resolves. */
+const identitiesStub = Layer.succeed(
+  RepositoryIdentityResolver,
+  RepositoryIdentityResolver.of({ resolve: () => Effect.succeed(null) }),
+);
+
+it.effect("NomiorContextLive builds the broker, the memory writer and the MCP port", () =>
   Effect.gen(function* () {
     yield* ContextIngest;
     yield* ContextRetrieval;
     yield* EmbeddingWorker;
-    yield* MemoryCandidateStore;
+    yield* MemoryWriter;
     const port = yield* ContextRetrievalPort;
     // Reachable, not merely resolvable: the port answers a real query.
     const result = yield* port.search({
@@ -105,6 +112,7 @@ it.effect("NomiorReviewPortsLive builds with the safe defaults bound", () =>
       NomiorReviewPortsLive.pipe(
         Layer.provide(NomiorSchedulerLive),
         Layer.provide(registryStub),
+        Layer.provide(identitiesStub),
         Layer.provideMerge(NomiorContextLive),
         Layer.provideMerge(database),
         Layer.provide(NodeServices.layer),
@@ -133,6 +141,7 @@ it.effect("a leg cannot run against an empty instance registry", () =>
       NomiorReviewPortsLive.pipe(
         Layer.provide(NomiorSchedulerLive),
         Layer.provide(registryStub),
+        Layer.provide(identitiesStub),
         Layer.provideMerge(NomiorContextLive),
         Layer.provideMerge(database),
         Layer.provide(NodeServices.layer),

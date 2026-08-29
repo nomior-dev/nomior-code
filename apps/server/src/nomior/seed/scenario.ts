@@ -849,7 +849,7 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
  * explicit decision, and the simulator asserts they never surface in
  * retrieval (PLAN.md — nothing promotes without approval).
  */
-export type SeedMemoryStatus = "verified" | "candidate" | "procedural";
+export type SeedMemoryStatus = "verified" | "procedural";
 
 export interface SeedMemory {
   readonly memoryId: string;
@@ -860,7 +860,7 @@ export interface SeedMemory {
   readonly capturedAt: string;
   /** Where the memory came from, as shown next to it in the panel. */
   readonly sourceLabel: string;
-  /** Which producer offered it — the candidate store's two-value vocabulary. */
+  /** Which producer wrote it — the memory writer's two-value vocabulary. */
   readonly producer: "review" | "context-tool";
 }
 
@@ -868,7 +868,7 @@ export const seedMemories: ReadonlyArray<SeedMemory> = [
   {
     memoryId: "mem-501",
     capsule: "nomior-code",
-    status: "candidate",
+    status: "verified",
     title: "Ingest cursors must be idempotent",
     text: "Ingest cursor writes must be idempotent: derive the cursor key from the batch id, never from wall-clock time, or a replayed batch double-advances the sync window.",
     capturedAt: "2026-08-29T04:00:00.000Z",
@@ -878,7 +878,7 @@ export const seedMemories: ReadonlyArray<SeedMemory> = [
   {
     memoryId: "mem-502",
     capsule: "nomior-code",
-    status: "candidate",
+    status: "verified",
     title: "Needs you cards name an owner",
     text: "Cards in the Needs you column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
     capturedAt: "2026-08-28T13:20:00.000Z",
@@ -888,7 +888,7 @@ export const seedMemories: ReadonlyArray<SeedMemory> = [
   {
     memoryId: "mem-503",
     capsule: "nomior-code",
-    status: "candidate",
+    status: "verified",
     title: "Scheduler picks are explained in the UI",
     text: "Every automatic instance pick names its signal in user-facing copy: manual pin, project constraint, sticky, headroom, or rotation.",
     capturedAt: "2026-08-27T11:05:00.000Z",

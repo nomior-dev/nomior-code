@@ -17,7 +17,6 @@ import type {
   NomiorContextSearchResult,
   NomiorInstanceSetPinnedInput,
   NomiorInstancesListResult,
-  NomiorMemoryCandidateResolveInput,
   NomiorMeetingDetail,
   NomiorMeetingGetInput,
   NomiorMeetingsListResult,
@@ -27,7 +26,6 @@ import type {
   NomiorConnectorsListResult,
   NomiorConnectorSyncResult,
   NomiorGoogleClientIdSetInput,
-  NomiorMemoryCandidatesListResult,
   NomiorReviewJobDetail,
   NomiorReviewJobGetInput,
   NomiorReviewJobsListResult,
@@ -59,8 +57,6 @@ export interface NomiorCommandRunner {
   readonly syncConnector: (
     input: NomiorConnectorAccountInput,
   ) => Settled<NomiorConnectorSyncResult>;
-  readonly listMemoryCandidates: () => Settled<NomiorMemoryCandidatesListResult>;
-  readonly resolveMemoryCandidate: (input: NomiorMemoryCandidateResolveInput) => Settled<void>;
   readonly listCalendarAccounts: () => Settled<NomiorCalendarAccountsListResult>;
   readonly listCalendarEvents: (
     input: NomiorCalendarEventsListInput,
@@ -101,9 +97,6 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
     },
 
     searchContext: async (query) => (await value(runner.searchContext({ query }))).snippets,
-    // No wire method opens a snippet's source: the contract carries retrieval
-    // only, so this stays the no-op the fixture already is.
-    openContextSource: () => Promise.resolve(),
     listMeetings: async () => (await value(runner.listMeetings())).meetings,
     getMeeting: (meetingId) => value(runner.getMeeting({ meetingId })),
     listConnectors: () => value(runner.listConnectors()),
@@ -116,10 +109,6 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
       await value(runner.disconnectConnector({ accountId }));
     },
     syncConnector: async (accountId) => (await value(runner.syncConnector({ accountId }))).ingested,
-    listMemoryCandidates: async () => (await value(runner.listMemoryCandidates())).candidates,
-    resolveMemoryCandidate: async (id, resolution) => {
-      await value(runner.resolveMemoryCandidate({ id, resolution }));
-    },
 
     listCalendarAccounts: async () => (await value(runner.listCalendarAccounts())).accounts,
     listCalendarEvents: async (rangeStart, rangeEnd) =>
@@ -159,7 +148,6 @@ export function whileConnecting(port: NomiorDataPort): NomiorDataPort {
     listMeetings: never,
     getMeeting: never,
     listConnectors: never,
-    listMemoryCandidates: never,
     listCalendarAccounts: never,
     listCalendarEvents: never,
     listInstances: never,

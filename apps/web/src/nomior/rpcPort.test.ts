@@ -33,8 +33,6 @@ const baseRunner: NomiorCommandRunner = {
   connectConnector: unstubbed("connectConnector"),
   disconnectConnector: unstubbed("disconnectConnector"),
   syncConnector: unstubbed("syncConnector"),
-  listMemoryCandidates: unstubbed("listMemoryCandidates"),
-  resolveMemoryCandidate: unstubbed("resolveMemoryCandidate"),
   listCalendarAccounts: unstubbed("listCalendarAccounts"),
   listCalendarEvents: unstubbed("listCalendarEvents"),
   listInstances: unstubbed("listInstances"),
@@ -90,22 +88,6 @@ describe("RPC Nomior port reads", () => {
 
     await expect(port.searchContext("review gate")).resolves.toEqual([snippet]);
     expect(inputs).toEqual([{ query: "review gate" }]);
-  });
-
-  it("unwraps the memory candidates envelope", async () => {
-    const candidate = {
-      id: "candidate-1",
-      text: "Prefer receipts over sleeps in async tests.",
-      source: "Review finding on #412",
-      capturedAt: "2026-08-25T14:00:00.000Z",
-      status: "pending",
-    } as const;
-    const port = createRpcNomiorPort({
-      ...baseRunner,
-      listMemoryCandidates: () => succeed({ candidates: [candidate] }),
-    });
-
-    await expect(port.listMemoryCandidates()).resolves.toEqual([candidate]);
   });
 
   it("passes the calendar window through and unwraps the events envelope", async () => {
@@ -166,12 +148,6 @@ describe("RPC Nomior port reads", () => {
     await expect(port.listInstances()).resolves.toEqual([instance]);
     await expect(port.getSchedulerState()).resolves.toEqual(scheduler);
   });
-
-  it("opens a context source without a wire call", async () => {
-    await expect(createRpcNomiorPort(baseRunner).openContextSource("snippet-1")).resolves.toBe(
-      undefined,
-    );
-  });
 });
 
 describe("RPC Nomior port writes", () => {
@@ -187,20 +163,6 @@ describe("RPC Nomior port writes", () => {
 
     await port.requestManualReview("job-1");
     expect(inputs).toEqual([{ jobId: "job-1" }]);
-  });
-
-  it("carries the memory decision", async () => {
-    const inputs: unknown[] = [];
-    const port = createRpcNomiorPort({
-      ...baseRunner,
-      resolveMemoryCandidate: (input) => {
-        inputs.push(input);
-        return succeed(undefined);
-      },
-    });
-
-    await port.resolveMemoryCandidate("candidate-1", "approved");
-    expect(inputs).toEqual([{ id: "candidate-1", resolution: "approved" }]);
   });
 
   it("renames the instance id the wire expects", async () => {
@@ -272,7 +234,6 @@ describe("whileConnecting", () => {
         ...baseRunner,
         listReviewJobs: () => failWith("Not connected."),
         searchContext: () => failWith("Not connected."),
-        listMemoryCandidates: () => failWith("Not connected."),
         listCalendarAccounts: () => failWith("Not connected."),
         listCalendarEvents: () => failWith("Not connected."),
         listInstances: () => failWith("Not connected."),
@@ -283,7 +244,6 @@ describe("whileConnecting", () => {
     const reads = [
       port.listReviewJobs(),
       port.searchContext("anything"),
-      port.listMemoryCandidates(),
       port.listCalendarAccounts(),
       port.listCalendarEvents("2026-08-24T00:00:00.000Z", "2026-08-31T00:00:00.000Z"),
       port.listInstances(),

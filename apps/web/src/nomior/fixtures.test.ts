@@ -30,12 +30,4 @@ describe("fixture port", () => {
     // Falls back to the strongest remaining signal: highest headroom.
     expect(scheduler.lastDecision?.instanceId).toBe("inst-claude-main");
   });
-
-  it("resolving a memory candidate updates its status", async () => {
-    const port = createFixtureNomiorPort();
-    await port.resolveMemoryCandidate("mem-501", "approved");
-    const candidates = await port.listMemoryCandidates();
-    expect(candidates.find((candidate) => candidate.id === "mem-501")?.status).toBe("approved");
-    expect(candidates.find((candidate) => candidate.id === "mem-502")?.status).toBe("pending");
-  });
 });

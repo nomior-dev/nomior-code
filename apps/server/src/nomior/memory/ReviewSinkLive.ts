@@ -1,46 +1,56 @@
 /**
- * Binds the review engine's `MemoryCandidateSink` port to the one memory
- * candidate store, so a review finding and an agent's `context_remember` land
- * in the same table with the same pending-approval semantics.
+ * Binds the review engine's `MemoryCandidateSink` to `MemoryWriter`, so a
+ * review finding becomes memory the moment the review settles.
  *
- * Review candidates carry no scope: a review is about a repo, and a repo is
- * not automatically a Nomior project. They list as unscoped pending candidates
- * and the user assigns a scope when approving — `MemoryCandidateStore.approve`
- * refuses an unscoped candidate rather than guessing, because nothing enters
- * the broker unscoped.
+ * A review knows a repo, and the broker only takes scoped writes, so the repo
+ * is resolved to a T3 project through `NomiorProjects.byRepo` — the checkout
+ * whose git remote points at it. A repo with no project on this machine is
+ * logged and skipped: guessing a scope would file the finding under the wrong
+ * project, which is worse than not filing it.
  *
  * @module nomior/memory/ReviewSinkLive
  */
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
+import { NomiorProjects } from "../projects/NomiorProjects.ts";
 import { MemoryCandidateSink } from "../review/MemoryCandidates.ts";
-import { MemoryCandidateStore } from "./MemoryCandidateStore.ts";
+import { MemoryWriter } from "./MemoryWriter.ts";
 
 export const MemoryCandidateSinkLive = Layer.effect(
   MemoryCandidateSink,
   Effect.gen(function* () {
-    const store = yield* MemoryCandidateStore;
+    const memories = yield* MemoryWriter;
+    const projects = yield* NomiorProjects;
+
     return MemoryCandidateSink.of({
       offer: (candidate) =>
-        store
-          .offer({
+        Effect.gen(function* () {
+          const project = yield* projects.byRepo(candidate.repo);
+          if (Option.isNone(project)) {
+            return yield* Effect.logWarning(
+              "nomior: review finding not written to memory — no project checkout for this repo",
+              { repo: candidate.repo },
+            );
+          }
+          yield* memories.write({
             source: "review",
-            scope: null,
+            scope: { kind: "project", value: project.value.projectId },
             originRef: `${candidate.repo}@${candidate.headSha}`,
             kind: candidate.kind,
             ...(candidate.severity === undefined ? {} : { severity: candidate.severity }),
             text: candidate.text,
-          })
-          .pipe(
-            // The sink's port signature is infallible on purpose: a review must
-            // not fail because a candidate could not be filed. A write error is
-            // logged and the verdict stands.
-            Effect.catchTag("NomiorContextSqlError", (error) =>
-              Effect.logWarning("nomior: memory candidate write failed", { error }),
-            ),
-            Effect.asVoid,
+          });
+        }).pipe(
+          // The sink's port signature is infallible on purpose: a review must
+          // not fail because a memory could not be written. The error is
+          // logged and the verdict stands.
+          Effect.catchCause((cause) =>
+            Effect.logWarning("nomior: review memory write failed", { cause }),
           ),
+          Effect.asVoid,
+        ),
     });
   }),
 );

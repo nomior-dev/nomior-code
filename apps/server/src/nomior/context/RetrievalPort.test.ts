@@ -171,7 +171,7 @@ describe("layerInMemory", () => {
     }),
   );
 
-  it.effect("remember issues unique pending candidates and never promotes", () =>
+  it.effect("remember writes a memory per distinct fact, and repeats are idempotent", () =>
     withPort((port) =>
       Effect.gen(function* () {
         const first = yield* port.remember({ text: "Ivan prefers pnpm", scope: "project:nomior" });
@@ -179,9 +179,12 @@ describe("layerInMemory", () => {
           text: "Deploys are on Friday",
           scope: "project:nomior",
         });
-        expect(first.status).toBe("pending_approval");
-        expect(second.status).toBe("pending_approval");
-        expect(first.candidateId).not.toBe(second.candidateId);
+        expect(first.created).toBe(true);
+        expect(second.created).toBe(true);
+        expect(first.sourceId).not.toBe(second.sourceId);
+        const again = yield* port.remember({ text: "Ivan prefers pnpm", scope: "project:nomior" });
+        expect(again.created).toBe(false);
+        expect(again.sourceId).toBe(first.sourceId);
       }),
     ),
   );

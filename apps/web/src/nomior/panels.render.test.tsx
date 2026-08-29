@@ -20,7 +20,7 @@ import {
   RemoteOAuthNotice,
   type ConnectorActionState,
 } from "./ConnectorsPanel";
-import { ContextMemoryPanel, MemoryCandidateRow } from "./ContextMemoryPanel";
+import { ContextMemoryPanel } from "./ContextMemoryPanel";
 import { createFixtureNomiorPort } from "./fixtures";
 import { GOOGLE_CLIENT_UNCONFIGURED } from "./fixtures.connectors";
 import { InstanceRow, InstancesPanel } from "./InstancesPanel";
@@ -43,10 +43,11 @@ describe("Nomior panels render standalone", () => {
     }
   });
 
-  it("context & memory renders search and the approval queue", () => {
+  it("context & memory renders search, and nothing that asks for approval", () => {
     const markup = renderToStaticMarkup(<ContextMemoryPanel />);
     expect(markup).toContain("Search context");
-    expect(markup).toContain("Memory candidates");
+    // Memories are written as they are produced; there is no queue to drain.
+    expect(markup).not.toContain("Memory candidates");
   });
 
   it("calendar renders the date controls and every view it offers", () => {
@@ -143,26 +144,6 @@ describe("Nomior panel subcomponents render fixture data", () => {
     expect(mapped.map((entry) => entry.title)).toContain("Daily standup");
     // Two accounts, two colours: the grid can tell them apart.
     expect(new Set(mapped.map((entry) => entry.color)).size).toBeGreaterThan(1);
-  });
-
-  it("memory candidate rows offer decisions while pending and show the verdict after", async () => {
-    const port = createFixtureNomiorPort(now);
-    const pending = (await port.listMemoryCandidates())[0]!;
-    const pendingMarkup = renderToStaticMarkup(
-      <MemoryCandidateRow candidate={pending} onResolve={noop} />,
-    );
-    expect(pendingMarkup).toContain("Approve");
-    expect(pendingMarkup).toContain("Reject");
-
-    await port.resolveMemoryCandidate(pending.id, "approved");
-    const resolved = (await port.listMemoryCandidates()).find(
-      (candidate) => candidate.id === pending.id,
-    )!;
-    const resolvedMarkup = renderToStaticMarkup(
-      <MemoryCandidateRow candidate={resolved} onResolve={noop} />,
-    );
-    expect(resolvedMarkup).toContain("Approved");
-    expect(resolvedMarkup).not.toContain("Reject");
   });
 
   it("instance rows show health, headroom, and disable pinning when signed out", async () => {

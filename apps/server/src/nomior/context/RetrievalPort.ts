@@ -172,9 +172,11 @@ export interface ContextScopeAuthorizationRequest {
   readonly scope: ContextScope;
 }
 
-export interface MemoryCandidateReceipt {
-  readonly candidateId: string;
-  readonly status: "pending_approval";
+export interface ContextRememberReceipt {
+  /** The `memory` source the text became; it is retrievable immediately. */
+  readonly sourceId: string;
+  /** False when the same fact was already remembered for this scope. */
+  readonly created: boolean;
 }
 
 export interface ContextRetrievalPortShape {
@@ -190,7 +192,7 @@ export interface ContextRetrievalPortShape {
   /** Records a memory candidate. Never promotes: promotion is a separate, user-approved step. */
   readonly remember: (
     request: ContextRememberRequest,
-  ) => Effect.Effect<MemoryCandidateReceipt, ContextUnavailableError>;
+  ) => Effect.Effect<ContextRememberReceipt, ContextUnavailableError>;
   /** The scope bound to a thread (its capsule/project), when one is configured. */
   readonly defaultScopeForThread: (threadId: string) => Effect.Effect<Option.Option<ContextScope>>;
   /**
@@ -299,8 +301,8 @@ export const layerInMemory = (seed: InMemoryContextSeed = {}): Layer.Layer<Conte
     const seededDecisions = seed.decisions ?? [];
     const threadScopes = seed.threadScopes ?? {};
     const threadScopeGrants = seed.threadScopeGrants ?? {};
-    let candidateSequence = 0;
-    const candidates: Array<ContextRememberRequest & { readonly candidateId: string }> = [];
+    let memorySequence = 0;
+    const remembered: Array<ContextRememberRequest & { readonly sourceId: string }> = [];
 
     return ContextRetrievalPort.of({
       search: (request) =>
@@ -349,10 +351,14 @@ export const layerInMemory = (seed: InMemoryContextSeed = {}): Layer.Layer<Conte
         }),
       remember: (request) =>
         Effect.sync(() => {
-          candidateSequence += 1;
-          const candidateId = `memc_${candidateSequence}`;
-          candidates.push({ ...request, candidateId });
-          return { candidateId, status: "pending_approval" as const };
+          const seen = remembered.find(
+            (entry) => entry.text === request.text && entry.scope === request.scope,
+          );
+          if (seen !== undefined) return { sourceId: seen.sourceId, created: false };
+          memorySequence += 1;
+          const sourceId = `mem_${memorySequence}`;
+          remembered.push({ ...request, sourceId });
+          return { sourceId, created: true };
         }),
       defaultScopeForThread: (threadId) =>
         Effect.succeed(Option.fromNullishOr(threadScopes[threadId])),

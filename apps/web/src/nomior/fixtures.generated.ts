@@ -430,26 +430,6 @@ export const generatedFixtures = {
       score: 0.47,
     },
   ],
-  memoryCandidates: [
-    {
-      id: "mem-501",
-      text: "Ingest cursor writes must be idempotent: derive the cursor key from the batch id, never from wall-clock time, or a replayed batch double-advances the sync window.",
-      source: "Review #388 — nomior-dev/nomior-invest",
-      capturedAgoHours: 5,
-    },
-    {
-      id: "mem-502",
-      text: "Cards in the Needs you column always name the human who owns the next step; a card with no owner is a queue with extra steps.",
-      source: "Friday review — 2026-08-28",
-      capturedAgoHours: 19.67,
-    },
-    {
-      id: "mem-503",
-      text: "Every automatic instance pick names its signal in user-facing copy: manual pin, project constraint, sticky, headroom, or rotation.",
-      source: "PLAN.md — instance scheduler",
-      capturedAgoHours: 45.92,
-    },
-  ],
   instances: [
     {
       id: "inst-claude-main",

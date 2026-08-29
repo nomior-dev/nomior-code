@@ -21,7 +21,6 @@ import { GoogleTokenVault } from "../connectors/google/GoogleTokenVault.ts";
 import { GoogleTokenPort } from "../connectors/google/GooglePorts.ts";
 import { ContextRetrievalPort } from "../context/RetrievalPort.ts";
 import { MeetingStore } from "../meetings/MeetingStore.ts";
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import { RateLimitObserver } from "../scheduler/RateLimitObserver.ts";
 import { SchedulerPreferences } from "../scheduler/SchedulerPreferences.ts";
 import { ReviewJobStore } from "../review/ReviewJobStore.ts";
@@ -83,25 +82,6 @@ export const makeNomiorPanelHandlers = ({
 
   [WS_METHODS.nomiorContextSearch]: (input: { readonly query: string }) =>
     observeRpcEffect(WS_METHODS.nomiorContextSearch, contextHandlers.searchContext(input)),
-
-  [WS_METHODS.nomiorMemoryCandidatesList]: () =>
-    observeRpcEffect(
-      WS_METHODS.nomiorMemoryCandidatesList,
-      Effect.gen(function* () {
-        return yield* contextHandlers.listMemoryCandidates(yield* MemoryCandidateStore);
-      }),
-    ),
-
-  [WS_METHODS.nomiorMemoryCandidateResolve]: (input: {
-    readonly id: string;
-    readonly resolution: "approved" | "rejected";
-  }) =>
-    observeRpcEffect(
-      WS_METHODS.nomiorMemoryCandidateResolve,
-      Effect.gen(function* () {
-        return yield* contextHandlers.resolveMemoryCandidate(yield* MemoryCandidateStore, input);
-      }),
-    ),
 
   [WS_METHODS.nomiorCalendarAccountsList]: () =>
     observeRpcEffect(
@@ -260,7 +240,6 @@ export type NomiorPanelHandlerServices =
   | GoogleTokenPort
   | GoogleTokenVault
   | MeetingStore
-  | MemoryCandidateStore
   | RateLimitObserver
   | ReviewJobStore
   | SchedulerPreferences;

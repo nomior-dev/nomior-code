@@ -154,30 +154,6 @@ export const NomiorContextSearchResult = Schema.Struct({
 });
 export type NomiorContextSearchResult = typeof NomiorContextSearchResult.Type;
 
-export const NomiorMemoryCandidateStatus = Schema.Literals(["pending", "approved", "rejected"]);
-export type NomiorMemoryCandidateStatus = typeof NomiorMemoryCandidateStatus.Type;
-
-export const NomiorMemoryCandidate = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  text: Schema.String,
-  /** Where it was extracted from (a review finding, a meeting, a document). */
-  source: Schema.String,
-  capturedAt: IsoDateTime,
-  status: NomiorMemoryCandidateStatus,
-});
-export type NomiorMemoryCandidate = typeof NomiorMemoryCandidate.Type;
-
-export const NomiorMemoryCandidatesListResult = Schema.Struct({
-  candidates: Schema.Array(NomiorMemoryCandidate),
-});
-export type NomiorMemoryCandidatesListResult = typeof NomiorMemoryCandidatesListResult.Type;
-
-export const NomiorMemoryCandidateResolveInput = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  resolution: Schema.Literals(["approved", "rejected"]),
-});
-export type NomiorMemoryCandidateResolveInput = typeof NomiorMemoryCandidateResolveInput.Type;
-
 // ---------------------------------------------------------------------------
 // Calendar & meetings
 // ---------------------------------------------------------------------------

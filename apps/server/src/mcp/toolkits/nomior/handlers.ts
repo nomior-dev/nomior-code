@@ -236,12 +236,11 @@ const contextRemember = Effect.fn("NomiorContextToolkit.contextRemember")(functi
   const port = yield* RetrievalPort.ContextRetrievalPort;
   const scope = yield* resolveScope(input.scope);
   // Scrubbed on the way in as well as on the way out: a pasted secret must
-  // never sit in the candidate store waiting on the return-path redaction.
+  // never reach the broker waiting on the return-path redaction.
   const receipt = yield* port.remember({ text: redactSecrets(input.text), scope });
   return {
-    candidateId: receipt.candidateId,
-    status: receipt.status,
-    note: "Recorded as a candidate only. It becomes memory after the user approves it in Nomior; do not treat it as accepted.",
+    sourceId: receipt.sourceId,
+    status: receipt.created ? ("remembered" as const) : ("already-known" as const),
   };
 });
 

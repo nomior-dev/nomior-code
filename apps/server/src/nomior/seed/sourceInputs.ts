@@ -206,21 +206,12 @@ export const ingestableReviewJobs: ReadonlyArray<SeedReviewJob> = seedReviewJobs
   (job) => job.repo === WORK_CAPSULE_REPO && job.verdict !== null,
 );
 
-/** Memories that are established knowledge; candidates await approval. */
-export const ingestableMemories: ReadonlyArray<SeedMemory> = seedMemories.filter(
-  (memory) => memory.status !== "candidate",
-);
-
-export const candidateMemories: ReadonlyArray<SeedMemory> = seedMemories.filter(
-  (memory) => memory.status === "candidate",
-);
-
 /**
  * Every source the seeder ingests, in a fixed order. Deterministic: the same
  * scenario always yields the same list, ids included.
  */
 export const seedSourceInputs: ReadonlyArray<SourceInput> = [
   ...seedMeetings.flatMap((meeting) => [transcriptSource(meeting), notesSource(meeting)]),
-  ...ingestableMemories.map(memorySource),
+  ...seedMemories.map(memorySource),
   ...ingestableReviewJobs.map(reviewSessionSource),
 ];

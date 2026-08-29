@@ -18,13 +18,20 @@ import {
   SqlitePersistenceMemory,
 } from "../../persistence/Layers/Sqlite.ts";
 import { MemoryCandidateSinkLive } from "../memory/ReviewSinkLive.ts";
+import { NomiorProjects } from "../projects/NomiorProjects.ts";
 import * as ReviewJobStore from "../review/ReviewJobStore.ts";
 import * as InstanceScheduler from "../scheduler/InstanceScheduler.ts";
 import * as SchedulerPreferences from "../scheduler/SchedulerPreferences.ts";
 import { DeterministicSeedRuntime } from "./deterministic.ts";
 import { SEED_NOW } from "./scenario.ts";
 import { NomiorSeedServices, seedNomior } from "./seed.ts";
-import { formatSimulationReport, runSimulation, simulationExitCode } from "./simulate.ts";
+import {
+  formatSimulationReport,
+  runSimulation,
+  simulationExitCode,
+  SIM_PROJECT_ID,
+  SIM_REPO,
+} from "./simulate.ts";
 
 const USAGE = `Usage: nomior:simulate [--db <path>]
 
@@ -37,9 +44,22 @@ const USAGE = `Usage: nomior:simulate [--db <path>]
  * memory sink review findings land in, and a scheduler that is switched ON
  * (it ships off — a disabled scheduler has nothing to demonstrate).
  */
+/**
+ * The harness has no git checkout, so the repo→project lookup its reviews need
+ * is supplied statically. `SIM_PROJECT_ID` is the scope every finding lands in.
+ */
+const SimulationProjects = NomiorProjects.layerStatic([
+  {
+    projectId: SIM_PROJECT_ID,
+    title: "Nomior Code",
+    workspaceRoot: "/w/nomior-code",
+    repo: SIM_REPO,
+  },
+]);
+
 const SimulationServices = Layer.mergeAll(
   ReviewJobStore.layer,
-  MemoryCandidateSinkLive,
+  MemoryCandidateSinkLive.pipe(Layer.provide(SimulationProjects)),
   InstanceScheduler.layer.pipe(
     Layer.provide(InstanceScheduler.InstanceSchedulerConfig.layerStatic({ enabled: true })),
     Layer.provideMerge(SchedulerPreferences.layer),
@@ -67,7 +87,7 @@ const program = Effect.gen(function* () {
   const summary = yield* seedNomior({ reset: false });
   yield* Console.log(
     `Seeded scenario: ${summary.sources} sources, ${summary.chunks} chunks, ` +
-      `${summary.reviewJobs} review jobs, ${summary.memoryCandidates} pending candidates.`,
+      `${summary.reviewJobs} review jobs.`,
   );
   const report = yield* runSimulation();
   yield* Console.log(formatSimulationReport(report));

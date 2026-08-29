@@ -59,14 +59,6 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:connector-sync",
       tag: WS_METHODS.nomiorConnectorSync,
     }),
-    listMemoryCandidates: createEnvironmentRpcCommand(runtime, {
-      label: "environment-data:nomior:memory-candidates-list",
-      tag: WS_METHODS.nomiorMemoryCandidatesList,
-    }),
-    resolveMemoryCandidate: createEnvironmentRpcCommand(runtime, {
-      label: "environment-data:nomior:memory-candidate-resolve",
-      tag: WS_METHODS.nomiorMemoryCandidateResolve,
-    }),
     listCalendarAccounts: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:calendar-accounts-list",
       tag: WS_METHODS.nomiorCalendarAccountsList,

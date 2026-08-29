@@ -16,7 +16,6 @@
  *
  * @module nomior/fixtures
  */
-import { applyCandidateResolution } from "./contextMemory.logic";
 import {
   GOOGLE_CLIENT_CONFIGURED,
   GOOGLE_CLIENT_UNCONFIGURED,
@@ -33,7 +32,6 @@ import type {
   ContextSnippet,
   GoogleClientState,
   MeetingDetail,
-  MemoryCandidate,
   ProviderInstanceItem,
   ReviewJobDetail,
   SchedulerState,
@@ -86,18 +84,6 @@ const contextSnippets: readonly ContextSnippet[] = generatedFixtures.contextSnip
     score: snippet.score,
   }),
 );
-
-function memoryCandidates(now: Date): MemoryCandidate[] {
-  return generatedFixtures.memoryCandidates.map((candidate) => ({
-    id: candidate.id,
-    text: candidate.text,
-    source: candidate.source,
-    capturedAt: hoursAgo(now, candidate.capturedAgoHours),
-    // Generated candidates are always pending: the seed cannot fabricate an
-    // approved memory, because approval is the user's to give.
-    status: "pending",
-  }));
-}
 
 const calendarAccounts: readonly CalendarAccount[] = generatedFixtures.calendarAccounts.map(
   (account) => ({
@@ -196,7 +182,6 @@ function instances(): ProviderInstanceItem[] {
 /** In-memory fixture implementation of the Nomior data port. */
 export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort {
   let jobs = reviewJobs(now);
-  let candidates: readonly MemoryCandidate[] = memoryCandidates(now);
   let providerInstances: readonly ProviderInstanceItem[] = instances();
   let scheduler: SchedulerState = {
     lastDecision: {
@@ -239,13 +224,6 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
         `${snippet.sourceTitle} ${snippet.excerpt}`.toLowerCase().includes(needle),
       );
       return Promise.resolve(matches.toSorted((left, right) => right.score - left.score));
-    },
-    // The fixture has no real sources to open; the RPC port navigates.
-    openContextSource: () => Promise.resolve(),
-    listMemoryCandidates: () => Promise.resolve(candidates),
-    resolveMemoryCandidate: (id, resolution) => {
-      candidates = applyCandidateResolution(candidates, id, resolution);
-      return Promise.resolve();
     },
 
     listCalendarAccounts: () => Promise.resolve(calendarAccounts),

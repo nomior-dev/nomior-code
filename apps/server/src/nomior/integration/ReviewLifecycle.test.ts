@@ -13,9 +13,10 @@
  */
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
-import { ProviderInstanceId } from "@t3tools/contracts";
+import { ProjectId, ProviderInstanceId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 
@@ -23,7 +24,33 @@ import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import type { ProviderInstance } from "../../provider/ProviderDriver.ts";
 import * as ProviderInstanceRegistry from "../../provider/Services/ProviderInstanceRegistry.ts";
 import { NomiorContextLive, NomiorSchedulerLive } from "../NomiorRuntime.ts";
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
+import { NomiorProjects } from "../projects/NomiorProjects.ts";
+
+interface MemoryRow {
+  readonly text: string;
+  readonly memorySource: string;
+  readonly memoryKind: string;
+  readonly originRef: string;
+  readonly scopeValue: string;
+}
+
+/** Every `memory` source in the broker, with the provenance the writer stamped. */
+const rememberedRows = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  return yield* sql<MemoryRow>`
+    SELECT c.text AS "text",
+           json_extract(s.provenance_json, '$.memorySource') AS "memorySource",
+           json_extract(s.provenance_json, '$.memoryKind') AS "memoryKind",
+           json_extract(s.provenance_json, '$.originRef') AS "originRef",
+           sc.scope_value AS "scopeValue"
+    FROM nomior_sources s
+    JOIN nomior_source_scopes sc ON sc.source_id = s.id
+    JOIN nomior_chunks c ON c.source_id = s.id AND c.ordinal = 0
+    WHERE s.kind = 'memory'
+  `;
+}).pipe(Effect.orDie);
+
+const rememberedTexts = Effect.map(rememberedRows, (rows) => rows.map((row) => row.text));
 import { MemoryCandidateSinkLive } from "../memory/ReviewSinkLive.ts";
 import { LegLauncher, LegRunnerLive, type LegLaunchInput } from "../wiring/LegRunnerLive.ts";
 import type { LegRunResult, ReviewLegConfig } from "../review/Legs.ts";
@@ -102,6 +129,17 @@ interface AppOptions {
   readonly instances?: ReadonlyArray<ProviderInstance> | undefined;
 }
 
+/** The checkout `nomior/nomior-code` would resolve to, so findings have a scope. */
+const REVIEW_PROJECT_ID = ProjectId.make("proj-nomior-code");
+const REVIEW_PROJECTS = NomiorProjects.layerStatic([
+  {
+    projectId: REVIEW_PROJECT_ID,
+    title: "Nomior Code",
+    workspaceRoot: "/w/nomior-code",
+    repo: "nomior/nomior-code",
+  },
+]);
+
 const makeAppLayer = (options: AppOptions = {}) =>
   ReviewEngineLayer.pipe(
     Layer.provide(ReviewRunContexts.layerStatic(runContext)),
@@ -111,7 +149,7 @@ const makeAppLayer = (options: AppOptions = {}) =>
         ReviewJobStore.layer,
         LegRunnerLive.pipe(Layer.provide(options.launcher ?? LegLauncher.layerHandOff)),
         options.publisher ?? ReviewPublisher.layerNoop,
-        MemoryCandidateSinkLive,
+        MemoryCandidateSinkLive.pipe(Layer.provide(REVIEW_PROJECTS)),
       ),
     ),
     Layer.provideMerge(NomiorSchedulerLive),
@@ -146,9 +184,8 @@ it.effect("the shipped default parks a job for a human instead of ruling on it",
     const outcome = yield* engine.processNext();
     assert.strictEqual(outcome.kind, "waiting-external");
 
-    // Nothing decided, nothing published, no memory candidates filed.
-    const store = yield* MemoryCandidateStore;
-    assert.deepStrictEqual(yield* store.list(), []);
+    // Nothing decided, nothing published, nothing written to memory.
+    assert.deepStrictEqual(yield* rememberedTexts, []);
   }).pipe(Effect.provide(makeAppLayer())),
 );
 
@@ -183,10 +220,9 @@ it.effect("a clean leg with runtime evidence and a playbook approves through the
   ),
 );
 
-it.effect("a critical finding blocks, and its findings land in the one candidate store", () =>
+it.effect("a critical finding blocks, and its findings become memory with no approval step", () =>
   Effect.gen(function* () {
     const engine = yield* ReviewEngine;
-    const store = yield* MemoryCandidateStore;
     yield* submitOne();
     const outcome = yield* engine.processNext();
 
@@ -195,15 +231,15 @@ it.effect("a critical finding blocks, and its findings land in the one candidate
     assert.strictEqual(outcome.verdict.decision, "not-approved");
     assert.strictEqual(outcome.job.status, "not-approved");
 
-    const candidates = yield* store.list();
-    assert.isAbove(candidates.length, 0);
-    for (const candidate of candidates) {
-      assert.strictEqual(candidate.source, "review");
-      // Approval-required: nothing a review produces is memory on arrival.
-      assert.strictEqual(candidate.status, "pending");
-      assert.strictEqual(candidate.originRef, "nomior/nomior-code@abc1234");
+    const written = yield* rememberedRows;
+    assert.isAbove(written.length, 0);
+    for (const row of written) {
+      assert.strictEqual(row.memorySource, "review");
+      assert.strictEqual(row.originRef, "nomior/nomior-code@abc1234");
+      // Scoped to the project the repo's checkout resolves to, never unscoped.
+      assert.strictEqual(row.scopeValue, REVIEW_PROJECT_ID);
     }
-    assert.isTrue(candidates.some((candidate) => candidate.kind === "verdict"));
+    assert.isTrue(written.some((row) => row.memoryKind === "verdict"));
   }).pipe(
     Effect.provide(
       makeAppLayer({

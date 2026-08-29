@@ -309,19 +309,18 @@ describe("context_decisions", () => {
 });
 
 describe("context_remember", () => {
-  it.effect("returns a pending candidate and states that approval is required", () =>
+  it.effect("returns the memory source it wrote, with no approval step in the way", () =>
     Effect.gen(function* () {
       const result = yield* runTool("context_remember", {
         text: "Ivan prefers conventional commits",
         scope: "project:nomior",
       });
-      expect(result.candidateId.length).toBeGreaterThan(0);
-      expect(result.status).toBe("pending_approval");
-      expect(result.note).toContain("approves");
+      expect(result.sourceId.length).toBeGreaterThan(0);
+      expect(result.status).toBe("remembered");
     }).pipe(Effect.provide(makeTestLayer(RetrievalPort.layerInMemory(seed)))),
   );
 
-  it.effect("redacts secrets before the text reaches the candidate store", () =>
+  it.effect("redacts secrets before the text reaches the broker", () =>
     Effect.gen(function* () {
       const stored: Array<RetrievalPort.ContextRememberRequest> = [];
       const unavailable = () =>
@@ -335,7 +334,7 @@ describe("context_remember", () => {
           remember: (request) =>
             Effect.sync(() => {
               stored.push(request);
-              return { candidateId: "memc_capture", status: "pending_approval" as const };
+              return { sourceId: "src_capture", created: true };
             }),
           defaultScopeForThread: () => Effect.succeed(Option.none()),
           authorizeScope: () => Effect.void,
@@ -345,7 +344,7 @@ describe("context_remember", () => {
         text: "Deploy uses api_key=super-secret-value-1234 for now",
         scope: "project:nomior",
       }).pipe(Effect.provide(makeTestLayer(capturingPort)));
-      expect(result.status).toBe("pending_approval");
+      expect(result.status).toBe("remembered");
       expect(stored).toHaveLength(1);
       expect(stored[0]?.text).not.toContain("super-secret-value-1234");
       expect(stored[0]?.text).toContain("[redacted:assigned-credential]");

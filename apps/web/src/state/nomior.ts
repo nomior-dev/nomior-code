@@ -33,8 +33,6 @@ export function createNomiorCommandRunner(
     connectConnector: (input) => run(nomiorEnvironment.connectConnector, input),
     disconnectConnector: (input) => run(nomiorEnvironment.disconnectConnector, input),
     syncConnector: (input) => run(nomiorEnvironment.syncConnector, input),
-    listMemoryCandidates: () => run(nomiorEnvironment.listMemoryCandidates, undefined),
-    resolveMemoryCandidate: (input) => run(nomiorEnvironment.resolveMemoryCandidate, input),
     listCalendarAccounts: () => run(nomiorEnvironment.listCalendarAccounts, undefined),
     listCalendarEvents: (input) => run(nomiorEnvironment.listCalendarEvents, input),
     listInstances: () => run(nomiorEnvironment.listInstances, undefined),

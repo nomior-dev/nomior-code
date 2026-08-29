@@ -12,11 +12,12 @@ import {
   seedCalendarEvents,
   seedConnectorAccounts,
   seedMeetings,
+  seedMemories,
   seedProviderInstances,
   seedReviewJobs,
 } from "./scenario.ts";
 import { NomiorSeedServices, seedNomior, type SeedError, type SeedSummary } from "./seed.ts";
-import { candidateMemories, seedSourceInputs } from "./sourceInputs.ts";
+import { seedSourceInputs } from "./sourceInputs.ts";
 
 /**
  * Each seed run gets a freshly built `DeterministicSeedRuntime`, which is what
@@ -82,7 +83,6 @@ layer("seedNomior", (it) => {
       assert.isAtLeast(summary.chunks, summary.sources);
       assert.strictEqual(summary.reviewJobs, seedReviewJobs.length);
       assert.strictEqual(summary.connectorAccounts, seedConnectorAccounts.length);
-      assert.strictEqual(summary.memoryCandidates, candidateMemories.length);
       assert.strictEqual(summary.calendarEvents, seedCalendarEvents.length);
       assert.strictEqual(summary.rateLimitStates, seedRateLimitedInstances.length);
     }),
@@ -100,7 +100,6 @@ layer("seedNomior", (it) => {
       assert.strictEqual(second.decisions, first.decisions);
       assert.strictEqual(second.tasks, first.tasks);
       assert.strictEqual(second.reviewJobs, first.reviewJobs);
-      assert.strictEqual(second.memoryCandidates, first.memoryCandidates);
       // Replacement, not insertion: every source was already there.
       assert.strictEqual(second.replacedSources, seedSourceInputs.length);
       assert.deepStrictEqual(secondSources, firstSources);
@@ -203,14 +202,14 @@ layer("seedNomior", (it) => {
     }),
   );
 
-  it.effect("files candidate memories as pending and nothing else", () =>
+  it.effect("ingests every seeded memory as a retrievable source", () =>
     Effect.gen(function* () {
       yield* runSeed();
       const sql = yield* SqlClient.SqlClient;
-      const rows = yield* sql<{ readonly status: string; readonly count: number }>`
-        SELECT status, COUNT(*) AS count FROM nomior_memory_candidates GROUP BY status
+      const rows = yield* sql<{ readonly count: number }>`
+        SELECT COUNT(*) AS count FROM nomior_sources WHERE kind = 'memory'
       `;
-      assert.deepStrictEqual(rows, [{ status: "pending", count: candidateMemories.length }]);
+      assert.strictEqual(rows[0]?.count, seedMemories.length);
     }),
   );
 

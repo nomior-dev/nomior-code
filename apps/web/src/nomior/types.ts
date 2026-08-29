@@ -77,18 +77,6 @@ export interface ContextSnippet {
   readonly score: number;
 }
 
-export type MemoryCandidateResolution = "approved" | "rejected";
-
-export interface MemoryCandidate {
-  readonly id: string;
-  readonly text: string;
-  /** Where the candidate was extracted from (review finding, meeting, …). */
-  readonly source: string;
-  readonly capturedAt: string;
-  /** Pending candidates await an explicit user decision; nothing auto-promotes. */
-  readonly status: "pending" | MemoryCandidateResolution;
-}
-
 // ---------------------------------------------------------------------------
 // Calendar & meetings
 // ---------------------------------------------------------------------------

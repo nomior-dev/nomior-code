@@ -35,7 +35,6 @@ import { NomiorContextLive } from "../NomiorRuntime.ts";
 import { EmbeddingWorker } from "../context/Embeddings.ts";
 import { ContextIngest } from "../context/Ingest.ts";
 import type { NomiorScope, SourceInput } from "../context/Model.ts";
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 
 const threadId = ThreadId.make("thread-nomior-integration");
 
@@ -175,9 +174,8 @@ layer("nomior integration: MCP context tools over the real broker", (it) => {
     }),
   );
 
-  it.effect("context_remember files a pending candidate in the one store, never memory", () =>
+  it.effect("context_remember writes memory that is searchable straight away", () =>
     Effect.gen(function* () {
-      const store = yield* MemoryCandidateStore;
       yield* seedThreadProjection;
       const remembered = yield* callTool("context_remember", {
         text: "Ivan prefers Conventional Commits with a scope.",
@@ -185,20 +183,13 @@ layer("nomior integration: MCP context tools over the real broker", (it) => {
       });
       assert.isFalse(remembered.isError);
       const receipt = remembered.structuredContent as {
-        readonly candidateId: string;
+        readonly sourceId: string;
         readonly status: string;
       };
-      assert.strictEqual(receipt.status, "pending_approval");
+      assert.strictEqual(receipt.status, "remembered");
+      assert.isAbove(receipt.sourceId.length, 0);
 
-      const candidates = yield* store.list();
-      const filed = candidates.find((candidate) => candidate.id === receipt.candidateId);
-      assert.isDefined(filed);
-      assert.strictEqual(filed.source, "context-tool");
-      assert.strictEqual(filed.status, "pending");
-      assert.deepStrictEqual(filed.scope, projectAlpha);
-      assert.isNull(filed.promotedSourceId);
-
-      // Still not retrievable: a candidate is not memory until approved.
+      // No approval step stands between remembering and retrieving.
       const searched = yield* callTool("context_search", {
         query: "Conventional Commits",
         scope,
@@ -208,9 +199,7 @@ layer("nomior integration: MCP context tools over the real broker", (it) => {
           readonly snippets: ReadonlyArray<{ readonly text: string }>;
         }
       ).snippets;
-      for (const snippet of snippets) {
-        assert.notInclude(snippet.text, "Conventional Commits");
-      }
+      assert.isTrue(snippets.some((snippet) => snippet.text.includes("Conventional Commits")));
     }),
   );
 

@@ -2,10 +2,8 @@ import { assert, describe, it } from "@effect/vitest";
 
 import { planChunks, renderSegment } from "../context/Chunking.ts";
 import type { DecisionInput, EvidenceSpan, SourceInput } from "../context/Model.ts";
-import { SEED_EXTERNAL_ID_PREFIX, seedMeetings, seedMemories } from "./scenario.ts";
+import { SEED_EXTERNAL_ID_PREFIX, seedMeetings } from "./scenario.ts";
 import {
-  candidateMemories,
-  ingestableMemories,
   PERSONAL_CAPSULE_SCOPE,
   segmentSpans,
   seedSourceInputs,
@@ -53,20 +51,6 @@ describe("seedSourceInputs", () => {
           (scope) =>
             scope.value === WORK_CAPSULE_SCOPE.value || scope.value === WORK_PROJECT_SCOPE.value,
         ),
-      );
-    }
-  });
-
-  it("never ingests a memory that is still awaiting approval", () => {
-    assert.isAtLeast(candidateMemories.length, 1);
-    assert.strictEqual(candidateMemories.length + ingestableMemories.length, seedMemories.length);
-    const texts = seedSourceInputs.flatMap((source) =>
-      source.segments.map((segment) => segment.text),
-    );
-    for (const candidate of candidateMemories) {
-      assert.isFalse(
-        texts.some((text) => text.includes(candidate.text)),
-        `${candidate.memoryId} is pending but was ingested`,
       );
     }
   });

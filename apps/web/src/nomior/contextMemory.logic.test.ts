@@ -1,23 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  applyCandidateResolution,
-  formatSourceDate,
-  orderMemoryCandidates,
-  pendingCandidateCount,
-  sourceKindLabel,
-} from "./contextMemory.logic";
+import { formatSourceDate, sourceKindLabel } from "./contextMemory.logic";
 import { createFixtureNomiorPort } from "./fixtures";
-import type { MemoryCandidate } from "./types";
-
-const candidate = (overrides: Partial<MemoryCandidate>): MemoryCandidate => ({
-  id: "mem-1",
-  text: "fact",
-  source: "somewhere",
-  capturedAt: "2026-08-29T10:00:00.000Z",
-  status: "pending",
-  ...overrides,
-});
 
 describe("sourceKindLabel", () => {
   it("labels every source kind", () => {
@@ -40,26 +24,7 @@ describe("formatSourceDate", () => {
   });
 });
 
-describe("memory candidate ordering and resolution", () => {
-  it("keeps pending candidates above resolved ones without dropping rows", () => {
-    const list = [
-      candidate({ id: "a", status: "approved" }),
-      candidate({ id: "b" }),
-      candidate({ id: "c", status: "rejected" }),
-    ];
-    expect(orderMemoryCandidates(list).map((entry) => entry.id)).toEqual(["b", "a", "c"]);
-  });
-
-  it("resolves exactly the addressed candidate", () => {
-    const list = [candidate({ id: "a" }), candidate({ id: "b" })];
-    const resolved = applyCandidateResolution(list, "a", "rejected");
-    expect(resolved.find((entry) => entry.id === "a")?.status).toBe("rejected");
-    expect(resolved.find((entry) => entry.id === "b")?.status).toBe("pending");
-    expect(pendingCandidateCount(resolved)).toBe(1);
-  });
-});
-
-describe("fixture port — context search and memory", () => {
+describe("fixture port — context search", () => {
   it("returns cited snippets ranked by score for a matching query", async () => {
     const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
     const results = await port.searchContext("scheduler");
@@ -75,15 +40,5 @@ describe("fixture port — context search and memory", () => {
   it("returns nothing for a blank query", async () => {
     const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
     expect(await port.searchContext("   ")).toEqual([]);
-  });
-
-  it("never auto-promotes: candidates stay pending until an explicit decision", async () => {
-    const port = createFixtureNomiorPort(new Date("2026-08-29T12:00:00.000Z"));
-    const before = await port.listMemoryCandidates();
-    expect(before.every((entry) => entry.status === "pending")).toBe(true);
-    await port.resolveMemoryCandidate(before[0]!.id, "approved");
-    const after = await port.listMemoryCandidates();
-    expect(after.find((entry) => entry.id === before[0]!.id)?.status).toBe("approved");
-    expect(after.filter((entry) => entry.status === "pending")).toHaveLength(before.length - 1);
   });
 });

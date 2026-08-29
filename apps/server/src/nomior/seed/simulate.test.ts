@@ -5,7 +5,7 @@ import type { NomiorScope } from "../context/Model.ts";
 import {
   assembleSeedMeetings,
   checkBudget,
-  checkCandidatePromotion,
+  checkReviewMemory,
   checkGateDecision,
   checkScopeIsolation,
   checkSchedulerDecision,
@@ -107,24 +107,24 @@ describe("checkGateDecision", () => {
   });
 });
 
-describe("checkCandidatePromotion", () => {
-  it("passes when no answer contains a pending candidate", () => {
+describe("checkReviewMemory", () => {
+  it("passes when every settled review's verdict is in memory", () => {
     assert.deepStrictEqual(
-      checkCandidatePromotion({
-        pendingTexts: ["Ingest cursors must be idempotent."],
-        retrievedTexts: ["The verdict gate is deterministic code."],
+      checkReviewMemory({
+        expectedTexts: ["Review verdict approve: clean run"],
+        rememberedTexts: ["Review verdict approve: clean run", "A follow-up finding."],
       }),
       [],
     );
   });
 
-  it("catches a pending candidate quoted inside an answer", () => {
-    const violations = checkCandidatePromotion({
-      pendingTexts: ["Ingest cursors must be idempotent."],
-      retrievedTexts: ["Notes: Ingest cursors must be idempotent. Filed for review."],
+  it("catches a settled review whose verdict never reached memory", () => {
+    const violations = checkReviewMemory({
+      expectedTexts: ["Review verdict not-approved: token in the repo"],
+      rememberedTexts: ["Review verdict approve: clean run"],
     });
     assert.strictEqual(violations.length, 1);
-    assert.strictEqual(violations[0]?.kind, "unapproved-candidate-retrieved");
+    assert.strictEqual(violations[0]?.kind, "review-memory-missing");
   });
 });
 
@@ -184,7 +184,7 @@ describe("simulationExitCode", () => {
     reviews: [],
     schedulerSteps: [],
     meetings: { total: 0, linked: 0, needConfirmation: 0 },
-    newMemoryCandidates: 0,
+    reviewMemories: 0,
     violations,
   });
 

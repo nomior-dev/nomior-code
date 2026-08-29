@@ -29,7 +29,6 @@ import {
   type SeedFindingSeverity,
   type SeedMeeting,
 } from "./scenario.ts";
-import { candidateMemories } from "./sourceInputs.ts";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -191,13 +190,6 @@ export interface GeneratedContextSnippet {
   readonly score: number;
 }
 
-export interface GeneratedMemoryCandidate {
-  readonly id: string;
-  readonly text: string;
-  readonly source: string;
-  readonly capturedAgoHours: number;
-}
-
 /**
  * Search results the panel can show without a broker: one snippet per seeded
  * decision, plus the blocking findings of the reviews that carry them. Scores
@@ -229,14 +221,6 @@ export const generatedContextSnippets = (): ReadonlyArray<GeneratedContextSnippe
     score: round2(Math.max(0.4, 0.95 - index * 0.04)),
   }));
 };
-
-export const generatedMemoryCandidates = (): ReadonlyArray<GeneratedMemoryCandidate> =>
-  candidateMemories.map((memory) => ({
-    id: memory.memoryId,
-    text: memory.text,
-    source: memory.sourceLabel,
-    capturedAgoHours: hoursBeforeNow(memory.capturedAt),
-  }));
 
 // ---------------------------------------------------------------------------
 // Instances & scheduler
@@ -354,7 +338,6 @@ export const webFixtureData = () => ({
   calendarAccounts: generatedCalendarAccounts(),
   calendarEvents: generatedCalendarEvents(),
   contextSnippets: generatedContextSnippets(),
-  memoryCandidates: generatedMemoryCandidates(),
   instances: generatedInstances(),
   schedulerDecision: generatedSchedulerDecision(),
 });

@@ -29,7 +29,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
+import { MemoryWriter } from "../memory/MemoryWriter.ts";
 import { NomiorScopeKind, type NomiorScope, type NomiorSourceKind } from "./Model.ts";
 import { ContextRetrieval } from "./Retrieval.ts";
 import {
@@ -158,7 +158,7 @@ const toTaskStatus = (status: string): ContextDecision["status"] => {
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const retrieval = yield* ContextRetrieval;
-  const candidates = yield* MemoryCandidateStore;
+  const memories = yield* MemoryWriter;
 
   const loadSource = (id: string, scope: NomiorScope) =>
     sql<SourceRow>`
@@ -337,8 +337,8 @@ export const make = Effect.gen(function* () {
 
   const remember: ContextRetrievalPortShape["remember"] = Effect.fn("RetrievalPortLive.remember")(
     function* (request) {
-      const receipt = yield* candidates
-        .offer({
+      const receipt = yield* memories
+        .write({
           source: "context-tool",
           scope: parseContextScope(request.scope),
           kind: "note",
@@ -350,7 +350,7 @@ export const make = Effect.gen(function* () {
               new ContextUnavailableError({ reason: `context_remember: ${error.message}` }),
           ),
         );
-      return { candidateId: receipt.candidateId, status: receipt.status };
+      return { sourceId: receipt.sourceId, created: receipt.created };
     },
   );
 
@@ -446,6 +446,6 @@ export const make = Effect.gen(function* () {
 /**
  * The layer `mcp/toolkits/nomior/handlers.ts` provides in place of
  * `RetrievalPort.layerUnavailable`. Requires `SqlClient`, `ContextRetrieval`
- * and `MemoryCandidateStore` — supplied by `NomiorRuntime.NomiorContextLive`.
+ * and `MemoryWriter` — supplied by `NomiorRuntime.NomiorContextLive`.
  */
 export const ContextRetrievalPortLive = Layer.effect(ContextRetrievalPort, make);

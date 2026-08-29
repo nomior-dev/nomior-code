@@ -15,11 +15,7 @@
  *
  * @module nomior/rpc/contextHandlers
  */
-import {
-  NomiorRequestError,
-  type NomiorContextSnippet,
-  type NomiorMemoryCandidate,
-} from "@t3tools/contracts";
+import { NomiorRequestError, type NomiorContextSnippet } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
@@ -28,11 +24,6 @@ import { formatContextScope } from "../context/RetrievalPortLive.ts";
 import { redactSecrets } from "../context/redactSecrets.ts";
 import type { NomiorScopeKind } from "../context/Model.ts";
 import * as RetrievalPort from "../context/RetrievalPort.ts";
-import {
-  MemoryCandidateId,
-  type MemoryCandidateStoreShape,
-  type StoredMemoryCandidate,
-} from "../memory/MemoryCandidateStore.ts";
 
 /**
  * Candidates ranked per scope before merging. Generous relative to what the
@@ -130,47 +121,4 @@ export const searchContext = Effect.fn("nomior.rpc.searchContext")(function* (in
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
     .slice(0, MERGED_LIMIT);
   return { snippets };
-});
-
-/**
- * Producer plus its reference, as one line the panel can show under the text.
- * `originRef` is free-form (`repo@sha` for a review leg, a thread id for the
- * context tool), so it is shown verbatim rather than parsed.
- */
-const describeCandidateSource = (candidate: StoredMemoryCandidate): string => {
-  const producer = candidate.source === "review" ? "Review" : "Context tool";
-  return candidate.originRef === null || candidate.originRef === ""
-    ? producer
-    : `${producer} — ${redactSecrets(candidate.originRef)}`;
-};
-
-const toWireCandidate = (candidate: StoredMemoryCandidate): NomiorMemoryCandidate => ({
-  id: candidate.id,
-  text: redactSecrets(candidate.text),
-  source: describeCandidateSource(candidate),
-  capturedAt: candidate.createdAt,
-  status: candidate.status,
-});
-
-export const listMemoryCandidates = Effect.fn("nomior.rpc.listMemoryCandidates")(function* (
-  store: MemoryCandidateStoreShape,
-) {
-  const candidates = yield* store.list({ status: "pending" }).pipe(Effect.mapError(unavailable));
-  return { candidates: candidates.map(toWireCandidate) };
-});
-
-export const resolveMemoryCandidate = Effect.fn("nomior.rpc.resolveMemoryCandidate")(function* (
-  store: MemoryCandidateStoreShape,
-  input: { readonly id: string; readonly resolution: "approved" | "rejected" },
-) {
-  const id = MemoryCandidateId.make(input.id);
-  yield* (input.resolution === "approved" ? store.approve(id) : store.reject(id)).pipe(
-    Effect.mapError((cause) =>
-      cause._tag === "NomiorMemoryCandidateNotFoundError" ||
-      cause._tag === "NomiorMemoryCandidateScopeRequiredError"
-        ? // Both describe this candidate, not the request: retrying is pointless.
-          new NomiorRequestError({ message: cause.message, retryable: false })
-        : unavailable(cause),
-    ),
-  );
 });

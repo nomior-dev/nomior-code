@@ -16,8 +16,8 @@
  *       ├ EmbeddingModelRegistryDefault│
  *       ├ ContextualPrefixerDeterministic
  *       └ RerankerIdentity
- *     MemoryCandidateStoreLive  ←── ContextIngest (promotion on approve)
- *     ContextRetrievalPortLive  ←── ContextRetrieval + MemoryCandidateStore
+ *     MemoryWriterLive          ←── ContextIngest
+ *     ContextRetrievalPortLive  ←── ContextRetrieval + MemoryWriter
  *          │
  *          └──▶ mcp/toolkits/nomior  (context_search/get/decisions/remember)
  *
@@ -30,7 +30,7 @@
  *     ReviewJobStore.layer
  *     LegRunnerLive ←── LegLauncher.layerHandOff   (no-op by default)
  *     ReviewPublisher.layerNoop                    (no external posting)
- *     MemoryCandidateSinkLive ←── MemoryCandidateStore
+ *     MemoryCandidateSinkLive ←── MemoryWriter + NomiorProjects
  *     ReviewEngine.layer ←── ReviewEngineConfig + ReviewRunContexts
  * ```
  *
@@ -49,7 +49,8 @@ import { GoogleTokenPortLive } from "./connectors/google/googleapisRuntime.ts";
 import { ContextBrokerLive } from "./context/ContextBroker.ts";
 import { ContextRetrievalPortLive } from "./context/RetrievalPortLive.ts";
 import * as MeetingStore from "./meetings/MeetingStore.ts";
-import { MemoryCandidateStoreLive } from "./memory/MemoryCandidateStore.ts";
+import { MemoryWriterLive } from "./memory/MemoryWriter.ts";
+import { layer as NomiorProjectsLive } from "./projects/NomiorProjects.ts";
 import { MemoryCandidateSinkLive } from "./memory/ReviewSinkLive.ts";
 import { LegLauncher, LegRunnerLive } from "./wiring/LegRunnerLive.ts";
 import { ReviewPublisher } from "./review/ReviewPublisher.ts";
@@ -63,11 +64,11 @@ import * as SchedulerPreferences from "./scheduler/SchedulerPreferences.ts";
  * broker (one embedding worker fiber, one connection). Requires `SqlClient`.
  *
  * `provideMerge` throughout so the broker services stay visible to callers —
- * the connector adapter and the memory store both need `ContextIngest`, and
+ * the connector adapter and the memory writer both need `ContextIngest`, and
  * providing the broker twice would fork a second embedding worker.
  */
 export const NomiorContextLive = ContextRetrievalPortLive.pipe(
-  Layer.provideMerge(MemoryCandidateStoreLive),
+  Layer.provideMerge(MemoryWriterLive),
   Layer.provideMerge(ContextBrokerLive),
 );
 
@@ -93,19 +94,20 @@ export const NomiorSchedulerLive = InstanceScheduler.layer.pipe(
  *   `waiting-external` for a human (see `LegRunnerLive`).
  * - `ReviewPublisher.layerNoop` — nothing is posted anywhere. External posting
  *   also needs `allowExternalPosting`, which defaults false.
- * - `MemoryCandidateSinkLive` — findings land in the one candidate store as
- *   pending.
+ * - `MemoryCandidateSinkLive` — findings are written straight to memory,
+ *   scoped to the project whose checkout matches the review's repo.
  *
- * Requires `SqlClient`, `InstanceScheduler`, `ProviderInstanceRegistry`, and
- * `MemoryCandidateStore`. `ReviewEngine` itself is not built here: it also
- * needs `ReviewRunContexts` (per-job leg configuration), which is deployment
- * data, so the caller provides that and `ReviewEngine.layer`.
+ * Requires `SqlClient`, `InstanceScheduler`, `ProviderInstanceRegistry`,
+ * `RepositoryIdentityResolver` and `MemoryWriter`. `ReviewEngine` itself is not
+ * built here: it also needs `ReviewRunContexts` (per-job leg configuration),
+ * which is deployment data, so the caller provides that and
+ * `ReviewEngine.layer`.
  */
 export const NomiorReviewPortsLive = Layer.mergeAll(
   ReviewJobStore.layer,
   LegRunnerLive.pipe(Layer.provide(LegLauncher.layerHandOff)),
   ReviewPublisher.layerNoop,
-  MemoryCandidateSinkLive,
+  MemoryCandidateSinkLive.pipe(Layer.provide(NomiorProjectsLive)),
 );
 
 /**

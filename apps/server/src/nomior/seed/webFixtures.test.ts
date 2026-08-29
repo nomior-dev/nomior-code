@@ -4,7 +4,6 @@ import * as NodeFS from "node:fs";
 import { assert, describe, it } from "@effect/vitest";
 
 import { seedGoogleAccounts, seedProviderInstances, seedReviewJobs } from "./scenario.ts";
-import { candidateMemories } from "./sourceInputs.ts";
 import { renderWebFixturesModule, webFixtureData, webFixturesPath } from "./webFixtures.ts";
 
 const data = webFixtureData();
@@ -61,19 +60,6 @@ describe("generated web fixtures", () => {
       assert.isBelow(event.dayOffset, 7);
       assert.isAtLeast(event.startHour, 0);
       assert.isBelow(event.startHour, 24);
-    }
-  });
-
-  it("offers only pending candidates, and never quotes one as a search result", () => {
-    assert.deepStrictEqual(
-      data.memoryCandidates.map((candidate) => candidate.id),
-      candidateMemories.map((memory) => memory.memoryId),
-    );
-    for (const candidate of data.memoryCandidates) {
-      assert.isFalse(
-        data.contextSnippets.some((snippet) => snippet.excerpt.includes(candidate.text)),
-        `${candidate.id} is pending but appears in context search`,
-      );
     }
   });
 

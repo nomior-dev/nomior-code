@@ -33,7 +33,6 @@ import { ConnectorAccountId, ConnectorDriverKind } from "../connectors/Records.t
 import { EmbeddingWorker } from "../context/Embeddings.ts";
 import { ContextIngest } from "../context/Ingest.ts";
 import type { NomiorContextError } from "../context/Model.ts";
-import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import * as RateLimitObserver from "../scheduler/RateLimitObserver.ts";
 import { seedRateLimitEvents } from "./rateLimitEvents.ts";
 import { severityCounts } from "./webFixtures.ts";
@@ -46,7 +45,7 @@ import {
   seedSchedulerAssignment,
   type SeedReviewJob,
 } from "./scenario.ts";
-import { candidateMemories, capsuleScope, seedSourceInputs } from "./sourceInputs.ts";
+import { seedSourceInputs } from "./sourceInputs.ts";
 
 /**
  * Everything the seeder (and the simulator) needs on top of a `SqlClient`
@@ -70,7 +69,6 @@ export interface SeedSummary {
   readonly tasks: number;
   readonly connectorAccounts: number;
   readonly connectorCursors: number;
-  readonly memoryCandidates: number;
   /** Scenario-only: no store owns connector records yet. */
   readonly calendarEvents: number;
   readonly reviewJobs: number;
@@ -104,12 +102,10 @@ const resetSeedRows = Effect.fn("nomiorSeed.reset")(function* () {
   const jobIds = seedReviewJobs.map((job) => job.jobId);
   const accountIds = seedConnectorAccounts.map((account) => account.accountId);
   const instanceIds = seedProviderInstances.map((instance) => instance.instanceId);
-  const candidateOriginRefs = candidateMemories.map((memory) => memory.sourceLabel);
 
   yield* sql`
     DELETE FROM nomior_sources WHERE external_id LIKE ${`${SEED_EXTERNAL_ID_PREFIX}%`}
   `;
-  yield* sql`DELETE FROM nomior_memory_candidates WHERE ${sql.in("origin_ref", candidateOriginRefs)}`;
   yield* sql`DELETE FROM nomior_review_job_starts WHERE ${sql.in("job_id", jobIds)}`;
   yield* sql`DELETE FROM nomior_review_jobs WHERE ${sql.in("id", jobIds)}`;
   yield* sql`DELETE FROM nomior_connector_cursors WHERE ${sql.in("account_id", accountIds)}`;
@@ -138,25 +134,6 @@ const seedConnectors = Effect.fn("nomiorSeed.connectors")(function* () {
     for (const cursor of account.cursors) {
       yield* cursors.set(accountId, cursor.streamId, cursor.cursor);
     }
-  }
-});
-
-/**
- * Candidate memories go through `MemoryCandidateStore.offer`, which can only
- * ever write `pending`. That is the point: the seed cannot fabricate an
- * approved memory, so "nothing promotes without approval" stays true of the
- * demo data too. Offers are content-addressed, hence idempotent.
- */
-const seedMemoryCandidates = Effect.fn("nomiorSeed.memoryCandidates")(function* () {
-  const store = yield* MemoryCandidateStore;
-  for (const memory of candidateMemories) {
-    yield* store.offer({
-      source: memory.producer,
-      scope: capsuleScope(memory.capsule),
-      originRef: memory.sourceLabel,
-      kind: "note",
-      text: memory.text,
-    });
   }
 });
 
@@ -310,9 +287,6 @@ const readSeedCounts = Effect.fn("nomiorSeed.counts")(function* () {
     SELECT COUNT(*) AS count FROM nomior_connector_cursors
     WHERE ${sql.in("account_id", accountIds)}
   `;
-  const candidates = yield* sql<{ readonly count: number }>`
-    SELECT COUNT(*) AS count FROM nomior_memory_candidates WHERE status = 'pending'
-  `;
   const jobs = yield* sql<{ readonly count: number }>`
     SELECT COUNT(*) AS count FROM nomior_review_jobs WHERE ${sql.in("id", jobIds)}
   `;
@@ -329,7 +303,6 @@ const readSeedCounts = Effect.fn("nomiorSeed.counts")(function* () {
     tasks: countOf(tasks),
     connectorAccounts: countOf(accounts),
     connectorCursors: countOf(cursors),
-    memoryCandidates: countOf(candidates),
     reviewJobs: countOf(jobs),
     rateLimitStates: countOf(rateLimits),
   };
@@ -362,7 +335,6 @@ export const seedNomior = Effect.fn("nomiorSeed")(function* (options: SeedOption
   // race the background embedder.
   yield* worker.awaitIdle;
 
-  yield* seedMemoryCandidates();
   yield* seedReviewBoard().pipe(Effect.mapError(toPersistenceSqlError("nomiorSeed.reviewBoard")));
   yield* seedCalendar().pipe(Effect.mapError(toPersistenceSqlError("nomiorSeed.calendar")));
   yield* seedSchedulerState();
@@ -386,7 +358,6 @@ export const formatSeedSummary = (summary: SeedSummary): string =>
     `  chunks / vectors   ${summary.chunks} / ${summary.embeddings}`,
     `  decisions / tasks  ${summary.decisions} / ${summary.tasks}`,
     `  connector accounts ${summary.connectorAccounts} (${summary.connectorCursors} cursors)`,
-    `  memory candidates  ${summary.memoryCandidates} pending`,
     `  calendar events    ${summary.calendarEvents}`,
     `  review jobs        ${summary.reviewJobs}`,
     `  rate-limit states  ${summary.rateLimitStates}`,

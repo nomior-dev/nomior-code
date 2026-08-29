@@ -1,8 +1,9 @@
 /**
  * MemoryCandidateSink — port through which review results feed the memory
- * layer as candidates. Candidates require explicit promotion elsewhere
- * (PLAN.md: nothing promotes without approval); this module deliberately
- * implements no storage — the memory track owns that.
+ * layer. There is no approval step: what a settled review reports becomes
+ * memory. This module deliberately implements no storage — the memory track
+ * owns that, and the sink's own signature is infallible so a write failure
+ * can never take a verdict down with it.
  */
 import { TrimmedNonEmptyString } from "@t3tools/contracts";
 import * as Context from "effect/Context";
@@ -28,7 +29,7 @@ export class MemoryCandidateSink extends Context.Service<
     readonly offer: (candidate: MemoryCandidate) => Effect.Effect<void>;
   }
 >()("t3/nomior/review/MemoryCandidates/MemoryCandidateSink") {
-  /** Default: drop candidates until the memory track provides a real sink. */
+  /** Default: drop findings until the memory track provides a real sink. */
   static readonly layerNoop = Layer.succeed(
     MemoryCandidateSink,
     MemoryCandidateSink.of({ offer: () => Effect.void }),

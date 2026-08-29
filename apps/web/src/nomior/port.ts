@@ -18,8 +18,6 @@ import type {
   ContextSnippet,
   MeetingDetail,
   MeetingItem,
-  MemoryCandidate,
-  MemoryCandidateResolution,
   ProviderInstanceItem,
   ReviewJob,
   ReviewJobDetail,
@@ -41,10 +39,6 @@ export interface NomiorDataPort {
   requestManualReview(jobId: string): Promise<void>;
 
   searchContext(query: string): Promise<readonly ContextSnippet[]>;
-  /** Opens the snippet's source (meeting, document, thread) in its own view. */
-  openContextSource(snippetId: string): Promise<void>;
-  listMemoryCandidates(): Promise<readonly MemoryCandidate[]>;
-  resolveMemoryCandidate(id: string, resolution: MemoryCandidateResolution): Promise<void>;
 
   listCalendarAccounts(): Promise<readonly CalendarAccount[]>;
   /**
