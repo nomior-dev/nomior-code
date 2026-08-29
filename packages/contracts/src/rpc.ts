@@ -19,6 +19,22 @@ import {
   FilesystemBrowseError,
 } from "./filesystem.ts";
 import {
+  NomiorCalendarAccountsListResult,
+  NomiorCalendarEventsListInput,
+  NomiorCalendarEventsListResult,
+  NomiorContextSearchInput,
+  NomiorContextSearchResult,
+  NomiorInstanceSetPinnedInput,
+  NomiorInstancesListResult,
+  NomiorMemoryCandidateResolveInput,
+  NomiorMemoryCandidatesListResult,
+  NomiorRequestError,
+  NomiorReviewJobsListResult,
+  NomiorReviewRequestManualInput,
+  NomiorSchedulerState,
+  NomiorSetAdvisoryModeInput,
+} from "./nomior.ts";
+import {
   AssetAccessError,
   AssetCreateUrlInput,
   AssetCreateUrlResult,
@@ -331,6 +347,19 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
+
+  // Nomior panel methods
+  nomiorReviewJobsList: "nomior.reviewJobs.list",
+  nomiorReviewRequestManual: "nomior.reviewJobs.requestManual",
+  nomiorContextSearch: "nomior.context.search",
+  nomiorMemoryCandidatesList: "nomior.memoryCandidates.list",
+  nomiorMemoryCandidateResolve: "nomior.memoryCandidates.resolve",
+  nomiorCalendarAccountsList: "nomior.calendar.accountsList",
+  nomiorCalendarEventsList: "nomior.calendar.eventsList",
+  nomiorInstancesList: "nomior.instances.list",
+  nomiorInstanceSetPinned: "nomior.instances.setPinned",
+  nomiorSchedulerGetState: "nomior.scheduler.getState",
+  nomiorSchedulerSetAdvisoryMode: "nomior.scheduler.setAdvisoryMode",
 } as const;
 
 export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1017,6 +1046,70 @@ export const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeReso
   stream: true,
 });
 
+// --- Nomior panels ---------------------------------------------------------
+// Every method carries `NomiorRequestError`; the panels render its message and
+// use `retryable` to decide whether to offer a Retry.
+
+export const WsNomiorReviewJobsListRpc = Rpc.make(WS_METHODS.nomiorReviewJobsList, {
+  success: NomiorReviewJobsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorReviewRequestManualRpc = Rpc.make(WS_METHODS.nomiorReviewRequestManual, {
+  payload: NomiorReviewRequestManualInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorContextSearchRpc = Rpc.make(WS_METHODS.nomiorContextSearch, {
+  payload: NomiorContextSearchInput,
+  success: NomiorContextSearchResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorMemoryCandidatesListRpc = Rpc.make(WS_METHODS.nomiorMemoryCandidatesList, {
+  success: NomiorMemoryCandidatesListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorMemoryCandidateResolveRpc = Rpc.make(WS_METHODS.nomiorMemoryCandidateResolve, {
+  payload: NomiorMemoryCandidateResolveInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorCalendarAccountsListRpc = Rpc.make(WS_METHODS.nomiorCalendarAccountsList, {
+  success: NomiorCalendarAccountsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorCalendarEventsListRpc = Rpc.make(WS_METHODS.nomiorCalendarEventsList, {
+  payload: NomiorCalendarEventsListInput,
+  success: NomiorCalendarEventsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorInstancesListRpc = Rpc.make(WS_METHODS.nomiorInstancesList, {
+  success: NomiorInstancesListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorInstanceSetPinnedRpc = Rpc.make(WS_METHODS.nomiorInstanceSetPinned, {
+  payload: NomiorInstanceSetPinnedInput,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorSchedulerGetStateRpc = Rpc.make(WS_METHODS.nomiorSchedulerGetState, {
+  success: NomiorSchedulerState,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorSchedulerSetAdvisoryModeRpc = Rpc.make(
+  WS_METHODS.nomiorSchedulerSetAdvisoryMode,
+  {
+    payload: NomiorSetAdvisoryModeInput,
+    error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+  },
+);
+
 export const WsRpcGroup = RpcGroup.make(
   WsServerProbeRpc,
   WsServerGetConfigRpc,
@@ -1120,4 +1213,15 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationGetArchivedShellSnapshotRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
+  WsNomiorReviewJobsListRpc,
+  WsNomiorReviewRequestManualRpc,
+  WsNomiorContextSearchRpc,
+  WsNomiorMemoryCandidatesListRpc,
+  WsNomiorMemoryCandidateResolveRpc,
+  WsNomiorCalendarAccountsListRpc,
+  WsNomiorCalendarEventsListRpc,
+  WsNomiorInstancesListRpc,
+  WsNomiorInstanceSetPinnedRpc,
+  WsNomiorSchedulerGetStateRpc,
+  WsNomiorSchedulerSetAdvisoryModeRpc,
 );

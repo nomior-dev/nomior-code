@@ -127,6 +127,22 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeServerLifecycle]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeAuthAccess]: AuthAccessReadScope,
   [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
+
+  // Nomior panels. Reads take the orchestration read scope; the two writes that
+  // only change local preference (a pin, advisory mode) take operate. Resolving
+  // a memory candidate and requesting a manual review both change what a future
+  // review is judged against, so they take the review-write scope.
+  [WS_METHODS.nomiorReviewJobsList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorReviewRequestManual]: AuthReviewWriteScope,
+  [WS_METHODS.nomiorContextSearch]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorMemoryCandidatesList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorMemoryCandidateResolve]: AuthReviewWriteScope,
+  [WS_METHODS.nomiorCalendarAccountsList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorCalendarEventsList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorInstancesList]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorInstanceSetPinned]: AuthOrchestrationOperateScope,
+  [WS_METHODS.nomiorSchedulerGetState]: AuthOrchestrationReadScope,
+  [WS_METHODS.nomiorSchedulerSetAdvisoryMode]: AuthOrchestrationOperateScope,
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
 export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {
