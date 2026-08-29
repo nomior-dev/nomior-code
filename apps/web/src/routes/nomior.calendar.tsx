@@ -18,10 +18,14 @@ const CalendarPanel = lazy(async () => ({
  * down the page. The grid takes the height it is given and scrolls its own
  * time axis inside it, so a wrapper that scrolls would scroll the header away
  * from the grid it belongs to.
+ *
+ * It takes the width it is given too. A reading measure is what caps the other
+ * pages, and a week has no measure — capping it just narrows seven columns and
+ * spends the rest of a wide display on margin.
  */
 function NomiorCalendarRoute() {
   return (
-    <WorkspacePageContainer className="min-h-0 flex-1 pb-6" width="expanded">
+    <WorkspacePageContainer className="min-h-0 max-w-none flex-1 pb-6">
       <Suspense fallback={<Skeleton className="min-h-0 flex-1 rounded-xl" />}>
         <CalendarPanel />
       </Suspense>

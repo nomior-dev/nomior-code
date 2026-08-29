@@ -273,7 +273,9 @@ export function MeetingReader({ detail }: { detail: MeetingDetail }) {
   const [mode, setMode] = useState<ReadingMode>(notes === null ? "transcript" : "notes");
 
   return (
-    <article className="flex min-w-0 flex-col gap-4">
+    // Capped: the pane is as wide as the display, and notes and transcript are
+    // prose, which stops being readable long before it stops fitting.
+    <article className="flex min-w-0 max-w-3xl flex-col gap-4">
       <header className="flex min-w-0 flex-col gap-2.5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="min-w-0 text-lg font-semibold">{meeting.title}</h2>
@@ -380,10 +382,15 @@ export function MeetingsPanel() {
   }
 
   return (
-    <div className="grid min-w-0 gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
+    // One row that fills the page: each pane scrolls inside it, so a long list
+    // never scrolls the meeting being read out of view.
+    <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
       <section
         aria-label="Meetings"
-        className={cn("flex min-w-0 flex-col gap-2", selectedId !== null && "hidden md:flex")}
+        className={cn(
+          "flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto",
+          selectedId !== null && "hidden md:flex",
+        )}
       >
         {ordered === null ? (
           <MeetingListSkeleton />
@@ -402,7 +409,7 @@ export function MeetingsPanel() {
       <section
         aria-label="Meeting"
         className={cn(
-          "flex min-w-0 flex-col gap-4 md:border-s md:border-border md:ps-6",
+          "flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto md:border-s md:border-border md:ps-6",
           selectedId === null && "hidden md:flex",
         )}
       >
