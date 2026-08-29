@@ -74,6 +74,12 @@ interface CalendarEventsListParams {
 }
 
 interface CalendarClientSeam {
+  /** `primary`'s id is the account's own address; there is no other read for it. */
+  readonly calendarList: {
+    get(params: { readonly calendarId: string }): Promise<{
+      readonly data: { readonly id?: string | null };
+    }>;
+  };
   readonly events: {
     list(params: CalendarEventsListParams): Promise<{
       readonly data: {
@@ -342,6 +348,20 @@ export const GoogleCalendarPortLive = Layer.effect(
       GoogleClientConfig | GoogleTokenVault | GoogleTokenPort
     >();
     return GoogleCalendarPort.of({
+      primaryAddress: (input) =>
+        authedClient({ accountId: input.accountId, operation: "calendar.calendarList.get" }).pipe(
+          Effect.flatMap(({ module, auth }) =>
+            Effect.tryPromise({
+              try: async () => {
+                const calendar = module.google.calendar({ version: "v3", auth });
+                const response = await calendar.calendarList.get({ calendarId: "primary" });
+                return response.data.id ?? "";
+              },
+              catch: toGoogleApiError("calendar.calendarList.get"),
+            }),
+          ),
+          Effect.provideContext(services),
+        ),
       listEvents: (input) =>
         authedClient({ accountId: input.accountId, operation: "calendar.events.list" }).pipe(
           Effect.flatMap(({ module, auth }) =>

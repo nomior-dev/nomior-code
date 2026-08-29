@@ -87,6 +87,17 @@ export interface GoogleCalendarListPage {
 export class GoogleCalendarPort extends Context.Service<
   GoogleCalendarPort,
   {
+    /**
+     * The address this account signs in as, read off its primary calendar.
+     *
+     * Gmail has `getProfile` for this; Calendar has no profile endpoint, and
+     * the primary calendar's id is the address. It is the only way to label an
+     * account with something the user recognises without asking for a second,
+     * wider scope than the one they consented to.
+     */
+    readonly primaryAddress: (input: {
+      readonly accountId: ConnectorAccountId;
+    }) => Effect.Effect<string, GoogleApiError>;
     readonly listEvents: (
       input: GoogleCalendarListInput,
     ) => Effect.Effect<GoogleCalendarListPage, GoogleApiError>;

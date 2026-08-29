@@ -97,7 +97,14 @@ const calendarPortLayer = (
     input: GoogleCalendarListInput,
   ) => Effect.Effect<GoogleCalendarListPage, GoogleApiError>,
 ): Layer.Layer<GoogleCalendarPort> =>
-  Layer.succeed(GoogleCalendarPort, GoogleCalendarPort.of({ listEvents: handler }));
+  Layer.succeed(
+    GoogleCalendarPort,
+    GoogleCalendarPort.of({
+      listEvents: handler,
+      // Only connect reads it, to label the account; sync never does.
+      primaryAddress: () => Effect.succeed("ivan@example.com"),
+    }),
+  );
 
 const makeInstance = (accountId: ConnectorAccountId) =>
   GoogleCalendarDriver.create({ accountId, displayName: undefined, config: decodeConfig({}) });

@@ -55,6 +55,7 @@ import {
 } from "../connectors/google/GoogleClientIdStore.ts";
 import { bundledGoogleClientId } from "../connectors/google/bundledClientId.ts";
 import type { GoogleTokenVault } from "../connectors/google/GoogleTokenVault.ts";
+import { GmailPort, GoogleCalendarPort } from "../connectors/google/GooglePorts.ts";
 import {
   GmailPortLive,
   GoogleCalendarPortLive,
@@ -324,6 +325,35 @@ export interface ConnectorConnectDeps {
 }
 
 /**
+ * The address a freshly authorized account signs in as, or null.
+ *
+ * Two accounts on one machine are the ordinary case now, so a list of opaque
+ * ids is not a list anybody can use — the calendar legend and the connectors
+ * page both label an account with whatever this returns. Neither read costs a
+ * scope beyond the one just consented to. Null is a legitimate answer: an
+ * account with a name is nicer, but not at the price of a connect that fails
+ * after the user has already granted it.
+ */
+const googleAddress = Effect.fn("nomior.rpc.googleAddress")(function* (
+  accountId: ConnectorAccountId,
+  kind: "googleCalendar" | "gmail",
+  clientId: string,
+) {
+  const address = yield* Effect.gen(function* () {
+    if (kind === "googleCalendar") {
+      const calendar = yield* GoogleCalendarPort;
+      return yield* calendar.primaryAddress({ accountId });
+    }
+    const gmail = yield* GmailPort;
+    return (yield* gmail.getProfile({ accountId })).emailAddress;
+  }).pipe(
+    Effect.provide(googlePortsFor(clientId)),
+    Effect.orElseSucceed(() => ""),
+  );
+  return address.length === 0 ? null : address;
+});
+
+/**
  * The sync a freshly connected account runs on its own.
  *
  * Connecting and then having nothing to show until the user finds the Sync
@@ -438,7 +468,10 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
     Effect.mapError(failed("Could not start Google authorization.", true)),
   );
 
-  const driverKind = ConnectorDriverKind.make(input.kind);
+  // Bound out here because the narrowing the Anarlog branch's early return
+  // gives `input.kind` does not survive into the closure below.
+  const googleKind = input.kind;
+  const driverKind = ConnectorDriverKind.make(googleKind);
   yield* Effect.gen(function* () {
     const account = yield* Effect.gen(function* () {
       yield* completeGoogleLoopbackAuthorization({ accountId, clientId, handle });
@@ -446,9 +479,7 @@ export const connectConnector = Effect.fn("nomior.rpc.connectConnector")(functio
       const account: ConnectorAccount = {
         accountId,
         driverKind,
-        // Naming the account after its address would need a profile read the
-        // Calendar port does not expose; the panel falls back to the id.
-        displayName: null,
+        displayName: yield* googleAddress(accountId, googleKind, clientId),
         config: {},
         status: "connected",
         createdAt: now,
