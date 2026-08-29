@@ -1,0 +1,18 @@
+{
+  // Workers + static assets config for the TanStack Start production build.
+  // @cloudflare/vite-plugin rewrites main/assets.directory to the emitted
+  // paths in dist/server/wrangler.json; the source values below are the signal
+  // that tells the plugin to build a Worker (not a Node server).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nomior-code-landing",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+  },
+  "observability": {
+    "enabled": true,
+  },
+}
