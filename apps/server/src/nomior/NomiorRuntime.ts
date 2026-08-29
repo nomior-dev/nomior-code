@@ -43,6 +43,7 @@ import * as ConnectorAccountStore from "./connectors/ConnectorAccountStore.ts";
 import { ConnectorContextIngestLive } from "./connectors/ContextIngestAdapter.ts";
 import { ContextBrokerLive } from "./context/ContextBroker.ts";
 import { ContextRetrievalPortLive } from "./context/RetrievalPortLive.ts";
+import * as MeetingStore from "./meetings/MeetingStore.ts";
 import { MemoryCandidateStoreLive } from "./memory/MemoryCandidateStore.ts";
 import { MemoryCandidateSinkLive } from "./memory/ReviewSinkLive.ts";
 import { LegLauncher, LegRunnerLive } from "./wiring/LegRunnerLive.ts";
@@ -112,9 +113,10 @@ export const NomiorReviewPortsLive = Layer.mergeAll(
  * `ProviderInstanceRegistry` and `InstanceScheduler` dependencies into every
  * WebSocket connection for no read the panels perform.
  *
- * The calendar and connector-account stores are here rather than in
+ * The calendar, connector-account and meeting stores are here rather than in
  * `NomiorConnectorIngestLive` because the panels read them without any sync
- * running; a connector that never fires still has accounts to list.
+ * running; a connector that never fires still has accounts to list, and
+ * `MeetingStore` reads sources a previous sync already ingested.
  */
 export const NomiorPanelRpcLive = Layer.mergeAll(
   NomiorContextLive,
@@ -122,4 +124,5 @@ export const NomiorPanelRpcLive = Layer.mergeAll(
   ReviewJobStore.layer,
   CalendarEventStore.layer,
   ConnectorAccountStore.layer,
+  MeetingStore.layer,
 );

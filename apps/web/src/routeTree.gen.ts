@@ -27,6 +27,7 @@ import { Route as SettingsArchivedRouteImport } from './routes/settings.archived
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as ProjectsProjectKeyRouteImport } from './routes/projects.$projectKey'
 import { Route as NomiorReviewRouteImport } from './routes/nomior.review'
+import { Route as NomiorMeetingsRouteImport } from './routes/nomior.meetings'
 import { Route as NomiorInstancesRouteImport } from './routes/nomior.instances'
 import { Route as NomiorContextRouteImport } from './routes/nomior.context'
 import { Route as NomiorCalendarRouteImport } from './routes/nomior.calendar'
@@ -124,6 +125,11 @@ const NomiorReviewRoute = NomiorReviewRouteImport.update({
   path: '/review',
   getParentRoute: () => NomiorRoute,
 } as any)
+const NomiorMeetingsRoute = NomiorMeetingsRouteImport.update({
+  id: '/meetings',
+  path: '/meetings',
+  getParentRoute: () => NomiorRoute,
+} as any)
 const NomiorInstancesRoute = NomiorInstancesRouteImport.update({
   id: '/instances',
   path: '/instances',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/nomior/calendar': typeof NomiorCalendarRoute
   '/nomior/context': typeof NomiorContextRoute
   '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/meetings': typeof NomiorMeetingsRoute
   '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/nomior/calendar': typeof NomiorCalendarRoute
   '/nomior/context': typeof NomiorContextRoute
   '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/meetings': typeof NomiorMeetingsRoute
   '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/nomior/calendar': typeof NomiorCalendarRoute
   '/nomior/context': typeof NomiorContextRoute
   '/nomior/instances': typeof NomiorInstancesRoute
+  '/nomior/meetings': typeof NomiorMeetingsRoute
   '/nomior/review': typeof NomiorReviewRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/nomior/calendar'
     | '/nomior/context'
     | '/nomior/instances'
+    | '/nomior/meetings'
     | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/nomior/calendar'
     | '/nomior/context'
     | '/nomior/instances'
+    | '/nomior/meetings'
     | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/nomior/calendar'
     | '/nomior/context'
     | '/nomior/instances'
+    | '/nomior/meetings'
     | '/nomior/review'
     | '/projects/$projectKey'
     | '/settings/appearance'
@@ -462,6 +474,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NomiorReviewRouteImport
       parentRoute: typeof NomiorRoute
     }
+    '/nomior/meetings': {
+      id: '/nomior/meetings'
+      path: '/meetings'
+      fullPath: '/nomior/meetings'
+      preLoaderRoute: typeof NomiorMeetingsRouteImport
+      parentRoute: typeof NomiorRoute
+    }
     '/nomior/instances': {
       id: '/nomior/instances'
       path: '/instances'
@@ -534,6 +553,7 @@ interface NomiorRouteChildren {
   NomiorCalendarRoute: typeof NomiorCalendarRoute
   NomiorContextRoute: typeof NomiorContextRoute
   NomiorInstancesRoute: typeof NomiorInstancesRoute
+  NomiorMeetingsRoute: typeof NomiorMeetingsRoute
   NomiorReviewRoute: typeof NomiorReviewRoute
 }
 
@@ -541,6 +561,7 @@ const NomiorRouteChildren: NomiorRouteChildren = {
   NomiorCalendarRoute: NomiorCalendarRoute,
   NomiorContextRoute: NomiorContextRoute,
   NomiorInstancesRoute: NomiorInstancesRoute,
+  NomiorMeetingsRoute: NomiorMeetingsRoute,
   NomiorReviewRoute: NomiorReviewRoute,
 }
 

@@ -27,6 +27,14 @@ export function createNomiorEnvironmentCommands<R, E>(
       label: "environment-data:nomior:context-search",
       tag: WS_METHODS.nomiorContextSearch,
     }),
+    listMeetings: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:meetings-list",
+      tag: WS_METHODS.nomiorMeetingsList,
+    }),
+    getMeeting: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:nomior:meeting-get",
+      tag: WS_METHODS.nomiorMeetingGet,
+    }),
     listMemoryCandidates: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:nomior:memory-candidates-list",
       tag: WS_METHODS.nomiorMemoryCandidatesList,

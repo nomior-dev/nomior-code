@@ -15,11 +15,13 @@ import type { ServerProvider } from "@t3tools/contracts";
 import { ConnectorAccountStore } from "../connectors/ConnectorAccountStore.ts";
 import { CalendarEventStore } from "../connectors/calendar/CalendarEventStore.ts";
 import { ContextRetrievalPort } from "../context/RetrievalPort.ts";
+import { MeetingStore } from "../meetings/MeetingStore.ts";
 import { MemoryCandidateStore } from "../memory/MemoryCandidateStore.ts";
 import { RateLimitObserver } from "../scheduler/RateLimitObserver.ts";
 import { SchedulerPreferences } from "../scheduler/SchedulerPreferences.ts";
 import { ReviewJobStore } from "../review/ReviewJobStore.ts";
 import * as contextHandlers from "./contextHandlers.ts";
+import * as meetingHandlers from "./meetingHandlers.ts";
 import * as panelHandlers from "./panelHandlers.ts";
 
 export interface NomiorPanelHandlerDeps {
@@ -98,6 +100,25 @@ export const makeNomiorPanelHandlers = ({
       }),
     ),
 
+  [WS_METHODS.nomiorMeetingsList]: (input: {
+    readonly rangeStart?: string | undefined;
+    readonly rangeEnd?: string | undefined;
+  }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorMeetingsList,
+      Effect.gen(function* () {
+        return yield* meetingHandlers.listMeetings(yield* MeetingStore, input);
+      }),
+    ),
+
+  [WS_METHODS.nomiorMeetingGet]: (input: { readonly meetingId: string }) =>
+    observeRpcEffect(
+      WS_METHODS.nomiorMeetingGet,
+      Effect.gen(function* () {
+        return yield* meetingHandlers.getMeeting(yield* MeetingStore, input);
+      }),
+    ),
+
   [WS_METHODS.nomiorInstancesList]: () =>
     observeRpcEffect(
       WS_METHODS.nomiorInstancesList,
@@ -142,6 +163,7 @@ export type NomiorPanelHandlerServices =
   | CalendarEventStore
   | ConnectorAccountStore
   | ContextRetrievalPort
+  | MeetingStore
   | MemoryCandidateStore
   | RateLimitObserver
   | ReviewJobStore

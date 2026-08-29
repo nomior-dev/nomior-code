@@ -25,6 +25,8 @@ const baseRunner: NomiorCommandRunner = {
   listReviewJobs: unstubbed("listReviewJobs"),
   requestManualReview: unstubbed("requestManualReview"),
   searchContext: unstubbed("searchContext"),
+  listMeetings: unstubbed("listMeetings"),
+  getMeeting: unstubbed("getMeeting"),
   listMemoryCandidates: unstubbed("listMemoryCandidates"),
   resolveMemoryCandidate: unstubbed("resolveMemoryCandidate"),
   listCalendarAccounts: unstubbed("listCalendarAccounts"),

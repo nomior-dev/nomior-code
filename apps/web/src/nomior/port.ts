@@ -13,6 +13,8 @@ import { createContext, useContext } from "react";
 import type {
   CalendarAccount,
   CalendarEventItem,
+  MeetingDetail,
+  MeetingItem,
   MemoryCandidate,
   MemoryCandidateResolution,
   ProviderInstanceItem,
@@ -50,6 +52,13 @@ export interface NomiorDataPort {
    * only.
    */
   listCalendarEvents(rangeStart: string, rangeEnd: string): Promise<readonly CalendarEventItem[]>;
+
+  /**
+   * Meetings ingested by the Anarlog connector. Ordering is the panel's job,
+   * not the port's.
+   */
+  listMeetings(): Promise<readonly MeetingItem[]>;
+  getMeeting(meetingId: string): Promise<MeetingDetail>;
 
   listInstances(): Promise<readonly ProviderInstanceItem[]>;
   setInstancePinned(id: string, pinned: boolean): Promise<void>;

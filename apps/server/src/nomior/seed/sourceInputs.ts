@@ -13,6 +13,7 @@ import type { EvidenceSpan, NomiorScope, SourceInput, SourceSegment } from "../c
 
 import {
   SEED_EXTERNAL_ID_PREFIX,
+  seedAnarlogAccount,
   seedMeetings,
   seedMemories,
   seedReviewJobs,
@@ -66,6 +67,33 @@ export const segmentSpans = (
   return spans;
 };
 
+/**
+ * Provenance in the shape `ContextIngestAdapter` writes, because that is the
+ * shape everything downstream reads: `MeetingStore` finds a meeting by
+ * `$.connectorKind` and joins its notes on `$.links.meetingSessionId`. A seed
+ * that spelled these its own way would leave the meetings panel empty against
+ * seeded data and full against real data.
+ *
+ * `endedAt` is deliberately absent: the adapter drops it, so a seed carrying it
+ * would let a reader derive a duration production cannot.
+ */
+const meetingProvenance = (
+  meeting: SeedMeeting,
+  connectorKind: "meeting_transcript" | "meeting_notes",
+  externalId: string,
+): Record<string, unknown> => ({
+  connector: "anarlog",
+  accountId: seedAnarlogAccount.accountId,
+  externalId,
+  connectorKind,
+  links: {
+    meetingSessionId: meeting.meetingId,
+    calendarEventId: meeting.calendarEventId,
+    ...(meeting.seriesId === null ? {} : { recurringSeriesId: meeting.seriesId }),
+  },
+  participants: meeting.participants.map((name) => ({ name })),
+});
+
 const transcriptSegments = (meeting: SeedMeeting): ReadonlyArray<SourceSegment> =>
   meeting.transcript.map((turn) => ({
     text: turn.text,
@@ -88,13 +116,8 @@ export const transcriptSource = (meeting: SeedMeeting): SourceInput => {
     scopes: scopesFor(meeting.capsule),
     segments,
     provenance: {
-      connector: "anarlog",
-      meetingId: meeting.meetingId,
-      calendarEventId: meeting.calendarEventId,
-      seriesId: meeting.seriesId,
+      ...meetingProvenance(meeting, "meeting_transcript", meeting.meetingId),
       language: meeting.language,
-      participants: [...meeting.participants],
-      endedAt: meeting.endsAt,
     },
     decisions: meeting.decisions.map((decision) => {
       const evidence = spanFor(decision.turnIndex);
@@ -125,11 +148,7 @@ export const notesSource = (meeting: SeedMeeting): SourceInput => ({
   occurredAt: meeting.startsAt,
   scopes: scopesFor(meeting.capsule),
   segments: meeting.notes.map((note) => ({ text: note.text, section: note.section })),
-  provenance: {
-    connector: "anarlog",
-    meetingId: meeting.meetingId,
-    kind: "notes",
-  },
+  provenance: meetingProvenance(meeting, "meeting_notes", `${meeting.meetingId}/notes`),
 });
 
 export const memorySource = (memory: SeedMemory): SourceInput => ({

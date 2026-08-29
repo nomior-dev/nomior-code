@@ -245,6 +245,81 @@ export const NomiorSetAdvisoryModeInput = Schema.Struct({
 export type NomiorSetAdvisoryModeInput = typeof NomiorSetAdvisoryModeInput.Type;
 
 // ---------------------------------------------------------------------------
+// Meetings
+// ---------------------------------------------------------------------------
+
+/** One person in the room. Anarlog often knows a name or an email, not both. */
+export const NomiorMeetingParticipant = Schema.Struct({
+  name: Schema.NullOr(Schema.String),
+  email: Schema.NullOr(Schema.String),
+});
+export type NomiorMeetingParticipant = typeof NomiorMeetingParticipant.Type;
+
+/**
+ * A meeting as the list renders it. `endedAt` is not stored by the broker, so
+ * duration is derived from the last transcript turn and is null for a meeting
+ * whose transcript is still empty.
+ */
+export const NomiorMeeting = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  title: Schema.String,
+  /** ISO timestamp the meeting started, when the connector knew one. */
+  startedAt: Schema.NullOr(IsoDateTime),
+  /**
+   * Milliseconds from the recording's start to its last timed turn. Recorders
+   * do not persist an end time, so this is derived and reads slightly short of
+   * the true length. Null when no turn carried a timestamp.
+   */
+  durationMs: Schema.NullOr(Schema.Int),
+  participants: Schema.Array(NomiorMeetingParticipant),
+  turnCount: Schema.Int,
+  hasNotes: Schema.Boolean,
+  /** Links the meeting to its calendar event, when the connector matched one. */
+  calendarEventId: Schema.NullOr(Schema.String),
+});
+export type NomiorMeeting = typeof NomiorMeeting.Type;
+
+/**
+ * One speaker turn. `speaker` is null when diarization never assigned one;
+ * offsets are milliseconds from the start of the recording, and are null for a
+ * transcript the connector delivered without timing (the markdown fallback).
+ */
+export const NomiorTranscriptTurn = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  ordinal: Schema.Int,
+  speaker: Schema.NullOr(Schema.String),
+  startMs: Schema.NullOr(Schema.Int),
+  endMs: Schema.NullOr(Schema.Int),
+  text: Schema.String,
+});
+export type NomiorTranscriptTurn = typeof NomiorTranscriptTurn.Type;
+
+export const NomiorMeetingDetail = Schema.Struct({
+  meeting: NomiorMeeting,
+  transcript: Schema.Array(NomiorTranscriptTurn),
+  /** The linked notes document, joined on the session id. Null when absent. */
+  notes: Schema.NullOr(Schema.String),
+});
+export type NomiorMeetingDetail = typeof NomiorMeetingDetail.Type;
+
+export const NomiorMeetingsListInput = Schema.Struct({
+  /** Half-open ISO window on the meeting start; omit for the most recent. */
+  rangeStart: Schema.optional(IsoDateTime),
+  rangeEnd: Schema.optional(IsoDateTime),
+});
+export type NomiorMeetingsListInput = typeof NomiorMeetingsListInput.Type;
+
+export const NomiorMeetingsListResult = Schema.Struct({
+  meetings: Schema.Array(NomiorMeeting),
+});
+export type NomiorMeetingsListResult = typeof NomiorMeetingsListResult.Type;
+
+export const NomiorMeetingGetInput = Schema.Struct({
+  meetingId: TrimmedNonEmptyString,
+});
+export type NomiorMeetingGetInput = typeof NomiorMeetingGetInput.Type;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

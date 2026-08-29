@@ -108,6 +108,51 @@ export interface MeetingArtifacts {
   readonly hasNotes: boolean;
 }
 
+/** One person in the room. Anarlog often knows a name or an email, not both. */
+export interface MeetingParticipant {
+  readonly name: string | null;
+  readonly email: string | null;
+}
+
+/**
+ * A meeting as the list renders it. The broker stores no end time, so duration
+ * is derived from the transcript and is null for a meeting that produced none.
+ */
+export interface MeetingItem {
+  readonly id: string;
+  readonly title: string;
+  /** ISO timestamp; null when the connector never knew a start time. */
+  readonly startedAt: string | null;
+  /** Milliseconds from the first turn to the last; null when there are none. */
+  readonly durationMs: number | null;
+  readonly participants: readonly MeetingParticipant[];
+  readonly turnCount: number;
+  readonly hasNotes: boolean;
+  /** Set when the connector matched the meeting to a calendar event. */
+  readonly calendarEventId: string | null;
+}
+
+/**
+ * One speaker turn. `speaker` is null when diarization never assigned one;
+ * offsets are milliseconds from the start of the recording, and are null for a
+ * transcript the connector delivered without timing (the markdown fallback).
+ */
+export interface TranscriptTurn {
+  readonly id: string;
+  readonly ordinal: number;
+  readonly speaker: string | null;
+  readonly startMs: number | null;
+  readonly endMs: number | null;
+  readonly text: string;
+}
+
+export interface MeetingDetail {
+  readonly meeting: MeetingItem;
+  readonly transcript: readonly TranscriptTurn[];
+  /** The linked notes document. Null when the meeting has none. */
+  readonly notes: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Instances & scheduler
 // ---------------------------------------------------------------------------

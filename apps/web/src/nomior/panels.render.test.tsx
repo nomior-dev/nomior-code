@@ -13,6 +13,13 @@ import { AgendaList, CalendarPanel, WeekGrid } from "./CalendarPanel";
 import { ContextMemoryPanel, MemoryCandidateRow } from "./ContextMemoryPanel";
 import { createFixtureNomiorPort } from "./fixtures";
 import { InstanceRow, InstancesPanel } from "./InstancesPanel";
+import {
+  MeetingListRow,
+  MeetingReader,
+  MeetingsPanel,
+  NotesReader,
+  TranscriptReader,
+} from "./MeetingsPanel";
 import { PortErrorState } from "./PortErrorState";
 import { ReviewBoardPanel, ReviewJobCard } from "./ReviewBoardPanel";
 
@@ -40,6 +47,12 @@ describe("Nomior panels render standalone", () => {
     const markup = renderToStaticMarkup(<InstancesPanel />);
     expect(markup).toContain("Scheduler");
     expect(markup).toContain("Advisory mode");
+  });
+
+  it("meetings renders both panes and the way back out of the detail", () => {
+    const markup = renderToStaticMarkup(<MeetingsPanel />);
+    expect(markup).toContain('aria-label="Meetings"');
+    expect(markup).toContain("All meetings");
   });
 });
 
@@ -131,6 +144,76 @@ describe("Nomior panel subcomponents render fixture data", () => {
       />,
     );
     expect(signedOutMarkup).toContain("disabled");
+  });
+
+  it("meeting rows name a missing date and a missing length instead of faking them", async () => {
+    const port = createFixtureNomiorPort(now);
+    const meetings = await port.listMeetings!();
+    const markup = meetings
+      .map((meeting) =>
+        renderToStaticMarkup(<MeetingListRow isActive={false} meeting={meeting} onSelect={noop} />),
+      )
+      .join("");
+    expect(markup).toContain("Review engine deep dive");
+    // The markdown fallback has neither a start time nor timing to derive from.
+    expect(markup).toContain("Date unknown");
+    expect(markup).toContain("Length unknown");
+    expect(markup).toContain("No transcript");
+  });
+
+  it("the reader shows the header, the derived length and every participant", async () => {
+    const port = createFixtureNomiorPort(now);
+    const detail = await port.getMeeting!("meet-anarlog-0826");
+    const markup = renderToStaticMarkup(<MeetingReader detail={detail} />);
+    expect(markup).toContain("Anarlog connector integration");
+    expect(markup).toContain("1 hr 3 min");
+    expect(markup).toContain("On the calendar");
+    expect(markup).toContain("Ivan Myshko");
+    expect(markup).toContain("julius@t3.example");
+  });
+
+  it("groups consecutive turns from one speaker and names the unattributed ones", async () => {
+    const port = createFixtureNomiorPort(now);
+    const { transcript } = await port.getMeeting!("meet-anarlog-0826");
+    const markup = renderToStaticMarkup(<TranscriptReader turns={transcript} />);
+    expect(markup).toContain("Unattributed");
+    expect(markup).toContain("1:00:12");
+    // Four turns came back unattributed, two of them back to back. They stay
+    // four blocks: merging them would claim one person said both.
+    expect(markup.split("Unattributed").length - 1).toBe(4);
+  });
+
+  it("an untimed transcript says so and shows no offsets at all", async () => {
+    const port = createFixtureNomiorPort(now);
+    const { transcript } = await port.getMeeting!("meet-friday-0821");
+    const markup = renderToStaticMarkup(<TranscriptReader turns={transcript} />);
+    expect(markup).toContain("arrived without timing");
+    expect(markup).not.toContain("00:00");
+  });
+
+  it("an empty transcript and absent notes are stated, not left blank", async () => {
+    const port = createFixtureNomiorPort(now);
+    const empty = await port.getMeeting!("meet-ep-master-0828");
+    expect(empty.transcript).toHaveLength(0);
+    const emptyMarkup = renderToStaticMarkup(<TranscriptReader turns={empty.transcript} />);
+    expect(emptyMarkup).toContain("No transcript");
+    expect(emptyMarkup).toContain("found no speech");
+
+    const standup = await port.getMeeting!("meet-standup-0827");
+    expect(standup.notes).toBeNull();
+    const notesMarkup = renderToStaticMarkup(<NotesReader notes={standup.notes} />);
+    expect(notesMarkup).toContain("No notes");
+  });
+
+  it("notes render as a document rather than raw markdown", async () => {
+    const port = createFixtureNomiorPort(now);
+    const { notes } = await port.getMeeting!("meet-review-engine-0825");
+    const markup = renderToStaticMarkup(<NotesReader notes={notes} />);
+    expect(markup).toContain("<h3");
+    expect(markup).toContain("<ul");
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("<strong");
+    expect(markup).not.toContain("## Decisions");
   });
 
   it("port error state names the failure and offers a retry", () => {

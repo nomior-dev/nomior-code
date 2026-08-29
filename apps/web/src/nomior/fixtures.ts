@@ -10,20 +10,26 @@
  * manual-review requests, memory decisions, pins and the advisory toggle stick
  * until reload.
  *
+ * Meetings are the exception: the seed scenario has no meetings section yet, so
+ * they are hand-written in `./fixtures.meetings` and resolved here the same way.
+ *
  * @module nomior/fixtures
  */
 import { applyCandidateResolution } from "./contextMemory.logic";
 import { generatedFixtures } from "./fixtures.generated";
+import { meetingScenarios } from "./fixtures.meetings";
 import { applyPin } from "./instances.logic";
 import type { NomiorDataPort } from "./port";
 import type {
   CalendarAccount,
   CalendarEventItem,
   ContextSnippet,
+  MeetingDetail,
   MemoryCandidate,
   ProviderInstanceItem,
   ReviewJob,
   SchedulerState,
+  TranscriptTurn,
 } from "./types";
 
 const HOUR_MS = 3_600_000;
@@ -105,6 +111,49 @@ function calendarEvents(now: Date): CalendarEventItem[] {
   });
 }
 
+/**
+ * Turns a meeting scenario into the pair the port serves. `durationMs` is
+ * derived from the transcript exactly as the broker derives it — first known
+ * start to last known end — which leaves it null for an untimed transcript and
+ * for one with no turns at all.
+ */
+function meetingDetail(now: Date, scenario: (typeof meetingScenarios)[number]): MeetingDetail {
+  const turns: TranscriptTurn[] = scenario.turns.map((turn, index) => ({
+    id: `${scenario.id}-t${index}`,
+    ordinal: index,
+    speaker: turn.speaker,
+    startMs: turn.startMs,
+    endMs: turn.endMs,
+    text: turn.text,
+  }));
+
+  const offsets = turns.flatMap((turn) => [turn.startMs, turn.endMs].filter((ms) => ms !== null));
+  const durationMs = offsets.length === 0 ? null : Math.max(...offsets) - Math.min(...offsets);
+
+  let startedAt: string | null = null;
+  if (scenario.dayOffset !== null) {
+    const start = weekStart(now);
+    start.setDate(start.getDate() + scenario.dayOffset);
+    start.setHours(scenario.startHour, scenario.startMinute, 0, 0);
+    startedAt = start.toISOString();
+  }
+
+  return {
+    meeting: {
+      id: scenario.id,
+      title: scenario.title,
+      startedAt,
+      durationMs,
+      participants: scenario.participants,
+      turnCount: turns.length,
+      hasNotes: scenario.notes !== null,
+      calendarEventId: scenario.calendarEventId,
+    },
+    transcript: turns,
+    notes: scenario.notes,
+  };
+}
+
 function instances(): ProviderInstanceItem[] {
   return generatedFixtures.instances.map((instance) => ({
     id: instance.id,
@@ -130,6 +179,9 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
     advisoryMode: true,
   };
   const events = calendarEvents(now);
+  const meetings = new Map(
+    meetingScenarios.map((scenario) => [scenario.id, meetingDetail(now, scenario)] as const),
+  );
 
   return {
     isFixture: true,
@@ -163,6 +215,14 @@ export function createFixtureNomiorPort(now: Date = new Date()): NomiorDataPort 
     listCalendarAccounts: () => Promise.resolve(calendarAccounts),
     listCalendarEvents: (rangeStart, rangeEnd) =>
       Promise.resolve(events.filter((event) => event.start < rangeEnd && event.end > rangeStart)),
+
+    listMeetings: () => Promise.resolve([...meetings.values()].map((detail) => detail.meeting)),
+    getMeeting: (meetingId) => {
+      const detail = meetings.get(meetingId);
+      return detail === undefined
+        ? Promise.reject(new Error(`No meeting ${meetingId}.`))
+        : Promise.resolve(detail);
+    },
 
     listInstances: () => Promise.resolve(providerInstances),
     setInstancePinned: (id, pinned) => {

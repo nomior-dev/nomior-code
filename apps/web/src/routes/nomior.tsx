@@ -28,6 +28,7 @@ const NOMIOR_TABS = [
   { id: "review", label: "Review board", path: "/nomior/review" },
   { id: "context", label: "Context & memory", path: "/nomior/context" },
   { id: "calendar", label: "Calendar", path: "/nomior/calendar" },
+  { id: "meetings", label: "Meetings", path: "/nomior/meetings" },
   { id: "instances", label: "Instances", path: "/nomior/instances" },
 ] as const;
 

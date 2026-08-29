@@ -26,6 +26,10 @@ import {
   NomiorContextSearchResult,
   NomiorInstanceSetPinnedInput,
   NomiorInstancesListResult,
+  NomiorMeetingDetail,
+  NomiorMeetingGetInput,
+  NomiorMeetingsListInput,
+  NomiorMeetingsListResult,
   NomiorMemoryCandidateResolveInput,
   NomiorMemoryCandidatesListResult,
   NomiorRequestError,
@@ -356,6 +360,8 @@ export const WS_METHODS = {
   nomiorMemoryCandidateResolve: "nomior.memoryCandidates.resolve",
   nomiorCalendarAccountsList: "nomior.calendar.accountsList",
   nomiorCalendarEventsList: "nomior.calendar.eventsList",
+  nomiorMeetingsList: "nomior.meetings.list",
+  nomiorMeetingGet: "nomior.meetings.get",
   nomiorInstancesList: "nomior.instances.list",
   nomiorInstanceSetPinned: "nomior.instances.setPinned",
   nomiorSchedulerGetState: "nomior.scheduler.getState",
@@ -1087,6 +1093,18 @@ export const WsNomiorCalendarEventsListRpc = Rpc.make(WS_METHODS.nomiorCalendarE
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
 });
 
+export const WsNomiorMeetingsListRpc = Rpc.make(WS_METHODS.nomiorMeetingsList, {
+  payload: NomiorMeetingsListInput,
+  success: NomiorMeetingsListResult,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
+export const WsNomiorMeetingGetRpc = Rpc.make(WS_METHODS.nomiorMeetingGet, {
+  payload: NomiorMeetingGetInput,
+  success: NomiorMeetingDetail,
+  error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
+});
+
 export const WsNomiorInstancesListRpc = Rpc.make(WS_METHODS.nomiorInstancesList, {
   success: NomiorInstancesListResult,
   error: Schema.Union([NomiorRequestError, EnvironmentAuthorizationError]),
@@ -1220,6 +1238,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsNomiorMemoryCandidateResolveRpc,
   WsNomiorCalendarAccountsListRpc,
   WsNomiorCalendarEventsListRpc,
+  WsNomiorMeetingsListRpc,
+  WsNomiorMeetingGetRpc,
   WsNomiorInstancesListRpc,
   WsNomiorInstanceSetPinnedRpc,
   WsNomiorSchedulerGetStateRpc,

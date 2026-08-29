@@ -18,6 +18,9 @@ import type {
   NomiorInstanceSetPinnedInput,
   NomiorInstancesListResult,
   NomiorMemoryCandidateResolveInput,
+  NomiorMeetingDetail,
+  NomiorMeetingGetInput,
+  NomiorMeetingsListResult,
   NomiorMemoryCandidatesListResult,
   NomiorReviewJobsListResult,
   NomiorReviewRequestManualInput,
@@ -36,6 +39,8 @@ export interface NomiorCommandRunner {
   readonly listReviewJobs: () => Settled<NomiorReviewJobsListResult>;
   readonly requestManualReview: (input: NomiorReviewRequestManualInput) => Settled<void>;
   readonly searchContext: (input: NomiorContextSearchInput) => Settled<NomiorContextSearchResult>;
+  readonly listMeetings: () => Settled<NomiorMeetingsListResult>;
+  readonly getMeeting: (input: NomiorMeetingGetInput) => Settled<NomiorMeetingDetail>;
   readonly listMemoryCandidates: () => Settled<NomiorMemoryCandidatesListResult>;
   readonly resolveMemoryCandidate: (input: NomiorMemoryCandidateResolveInput) => Settled<void>;
   readonly listCalendarAccounts: () => Settled<NomiorCalendarAccountsListResult>;
@@ -80,6 +85,8 @@ export function createRpcNomiorPort(runner: NomiorCommandRunner): NomiorDataPort
     // No wire method opens a snippet's source: the contract carries retrieval
     // only, so this stays the no-op the fixture already is.
     openContextSource: () => Promise.resolve(),
+    listMeetings: async () => (await value(runner.listMeetings())).meetings,
+    getMeeting: (meetingId) => value(runner.getMeeting({ meetingId })),
     listMemoryCandidates: async () => (await value(runner.listMemoryCandidates())).candidates,
     resolveMemoryCandidate: async (id, resolution) => {
       await value(runner.resolveMemoryCandidate({ id, resolution }));
@@ -120,6 +127,8 @@ export function whileConnecting(port: NomiorDataPort): NomiorDataPort {
     ...port,
     listReviewJobs: never,
     searchContext: never,
+    listMeetings: never,
+    getMeeting: never,
     listMemoryCandidates: never,
     listCalendarAccounts: never,
     listCalendarEvents: never,
