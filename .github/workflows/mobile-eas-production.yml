@@ -76,6 +76,11 @@ concurrency:
 jobs:
   production:
     name: EAS Production ${{ github.event_name == 'push' && 'auto' || inputs.mode }}
+    # Nomior fork: upstream-repo-only. The push paths match nearly every sync
+    # PR and Nomior change, and the fork has no blacksmith-* runners, so an
+    # ungated job queues forever and no PR is ever "green". Declared in
+    # docs/nomior/FORK-MANIFEST.md.
+    if: github.repository == 'pingdotgg/t3code'
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read

@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: nomior-upstream-sync
@@ -59,6 +60,9 @@ jobs:
             echo "tag=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # How long the fork has been behind, for the drift report below.
+          released=$(git for-each-ref "refs/tags/$tag" --format='%(creatordate:unix)')
+          echo "age_days=$(( ( $(date +%s) - released ) / 86400 ))" >> "$GITHUB_OUTPUT"
           if git merge-base --is-ancestor "$tag" HEAD; then
             echo "Newest stable tag $tag is already merged; nothing to sync."
             echo "tag=" >> "$GITHUB_OUTPUT"
@@ -194,4 +198,58 @@ jobs:
               --title "chore(sync): merge upstream $TAG" \
               --label upstream-sync \
               --body "$body"
+          fi
+
+      # A sync that dies (a conflict beyond the lockfile, an expired token, a
+      # runner that never starts) used to be visible only to whoever thought to
+      # open the Actions tab. Same reporting as the canary: one open issue,
+      # commented on each further failure.
+      - name: Report failure as issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh label create upstream-sync-failed --description "Upstream sync run failures" --color b60205 || true
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing=$(gh issue list --label upstream-sync-failed --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Sync still failing (target \`${TAG:-none}\`) — [run]($run_url)"
+          else
+            gh issue create \
+              --title "Upstream sync failing" \
+              --label upstream-sync-failed \
+              --body "The daily upstream sync failed — [run]($run_url). Until it runs clean the fork stops receiving upstream releases."
+          fi
+
+      # Opening the PR is not the same as being up to date: the merge is a
+      # human's call, so an unmerged sync PR drifts silently. Past the
+      # threshold that becomes an issue, and landing the tag closes it.
+      - name: Report drift
+        # `steps.tag.outcome` guards the close branch: a tag step that itself
+        # died also reports an empty tag, and that is not "caught up".
+        if: always() && steps.tag.outcome == 'success' && (steps.tag.outputs.tag == '' || steps.tag.outputs.age_days >= 7)
+        env:
+          GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          AGE: ${{ steps.tag.outputs.age_days }}
+        run: |
+          set -euo pipefail
+          gh label create upstream-drift --description "Fork is behind upstream stable" --color fbca04 || true
+          existing=$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number // empty')
+          if [ -z "$TAG" ]; then
+            # Caught up. Reverse state: the issue that announced the drift is
+            # the issue that has to close when it ends.
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "Fork is level with upstream stable again."
+            fi
+            exit 0
+          fi
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          note="Upstream stable \`$TAG\` has been out for $AGE days and is still not on \`main\`. Its sync PR is open and unmerged, or the sync is blocked — [run]($run_url)."
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$note"
+          else
+            gh issue create --title "Fork is behind upstream stable $TAG" --label upstream-drift --body "$note"
           fi

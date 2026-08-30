@@ -68,6 +68,7 @@ for humans and ignored by tooling.
 | `.github/workflows/release.yml`                               | fork CI: root jobs gated to `pingdotgg/t3code` — the 3-hourly schedule fires on the fork too; downstream cascades                                                                                                          |
 | `.github/workflows/deploy-relay.yml`                          | fork CI: job gated to `pingdotgg/t3code` — the fork must never deploy upstream's relay                                                                                                                                     |
 | `.github/workflows/mobile-fingerprint-check.yml`              | fork CI: job gated to `pingdotgg/t3code` — its paths match every sync PR                                                                                                                                                   |
+| `.github/workflows/mobile-eas-production.yml`                 | fork CI: job gated to `pingdotgg/t3code` — pushes to `main` under `apps/mobile`, `packages/contracts` or `packages/client-runtime` fire it, which is most Nomior work                                                      |
 | `apps/server/src/persistence/Layers/Sqlite.ts`                | migrator registration: one `yield* runNomiorMigrations()` after upstream's `runMigrations()` in the shared sqlite `setup` layer — Nomior schema never enters upstream's `migrationEntries`                                 |
 | `apps/server/package.json`                                    | script registration (`nomior:eval-retrieval`, `nomior:seed`, `nomior:simulate`, `nomior:gen-fixtures`) and `googleapis` + `google-auth-library` deps for the Google connectors (loaded through a dynamic-import seam)      |
 | `vite.config.ts`                                              | one `fmt.ignorePatterns` entry for `apps/web/src/nomior/fixtures.generated.ts` (the seed generator owns that file's layout and a drift test compares it byte for byte), plus `.claude/worktrees/**` in `fmt`/`lint`/`test` |
@@ -196,16 +197,33 @@ off until several clean runs have been observed (PLAN.md, "Fork discipline").
 `.github/workflows/nomior-canary.yml` builds daily against upstream's newest
 nightly tag for advance warning and gates nothing.
 
+Two ways the fork can quietly stop receiving upstream releases, and what says
+so. A run that dies — a conflict beyond the lockfile, an expired token, a
+runner that never starts — opens or comments on an `upstream-sync-failed`
+issue. A sync PR that opens and is never merged is not a failure and would
+otherwise be invisible, so once the newest stable tag has been out 7 days and
+is still off `main`, the run opens or comments on an `upstream-drift` issue;
+landing the tag closes it. Neither gates anything.
+
 ## Upstream workflows on the fork
 
 Upstream workflows target `blacksmith-*` runners this fork does not have; an
-ungated job queues forever and blocks "merge once checks are green". The four
+ungated job queues forever and blocks "merge once checks are green". The five
 that fire on their own (`ci.yml`, `release.yml` via its 3-hourly schedule,
 `deploy-relay.yml` on push to main, `mobile-fingerprint-check.yml` whose paths
-match every sync PR) are job-gated to `github.repository == 'pingdotgg/t3code'`
-(rows above). The preview workflows (`web-preview.yml`,
-`desktop-macos-preview.yml`, `mobile-eas-preview.yml`) already skip without
-their opt-in labels, and `pr-size.yml` / `pr-vouch.yml` run fine on standard
-runners, so they stay untouched. A new upstream workflow arriving in a sync PR
-needs the same gate (or a disable in the fork's Actions settings) if it
-auto-triggers on blacksmith runners.
+match every sync PR, `mobile-eas-production.yml` on pushes to main under
+`apps/mobile`, `packages/contracts` or `packages/client-runtime`) are job-gated
+to `github.repository == 'pingdotgg/t3code'` (rows above). The preview
+workflows (`web-preview.yml`, `desktop-macos-preview.yml`,
+`mobile-eas-preview.yml`) already skip without their opt-in labels,
+`mobile-showcase-screenshots.yml` and `publish-aur.yml` only run when dispatched
+or called, and `pr-size.yml` / `pr-vouch.yml` / `issue-labels.yml` /
+`thread-transfer-report.yml` run fine on standard runners, so they stay
+untouched. A new upstream workflow arriving in a sync PR needs the same gate
+(or a disable in the fork's Actions settings) if it auto-triggers on blacksmith
+runners.
+
+The EAS workflows carry their own fork guard as well: their first step checks
+for `EXPO_TOKEN` and every later step skips without it, so even ungated they
+could never publish into upstream's Expo project. The gate is about the queued
+job, not about a publish.
