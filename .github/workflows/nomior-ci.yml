@@ -12,6 +12,9 @@ on:
     branches:
       - main
       - "sync/**"
+  # Re-running the suite without a commit: after a billing or runner outage,
+  # and to check a sync PR that arrived with its checks suppressed.
+  workflow_dispatch:
 
 permissions:
   contents: read
