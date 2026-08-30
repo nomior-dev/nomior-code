@@ -24,6 +24,10 @@ concurrency:
 
 env:
   UPSTREAM_REPO: https://github.com/pingdotgg/t3code.git
+  # Every step below adds an `upstream` remote, and `gh` with no default repo
+  # picks one from the remotes — it chose upstream, so `gh pr create` and every
+  # issue call aimed at pingdotgg/t3code and 403'd. Pin the target.
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   sync:
@@ -55,9 +59,14 @@ jobs:
           # other prerelease suffix (-beta.N, -rc.N), not just -nightly.
           tag=$(git for-each-ref 'refs/tags/v*' --sort=-v:refname --format='%(refname:strip=2)' \
             | grep -E -m 1 '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          # `caught_up` and not merely an empty tag: finding no stable tag at
+          # all also leaves `tag` empty, and reading that as "level with
+          # upstream" would close the drift issue on the one result that most
+          # deserves it.
           if [ -z "$tag" ]; then
             echo "No stable upstream tag found."
             echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "caught_up=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # How long the fork has been behind, for the drift report below.
@@ -66,8 +75,10 @@ jobs:
           if git merge-base --is-ancestor "$tag" HEAD; then
             echo "Newest stable tag $tag is already merged; nothing to sync."
             echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "caught_up=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "caught_up=" >> "$GITHUB_OUTPUT"
           echo "Syncing to $tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -229,16 +240,17 @@ jobs:
       - name: Report drift
         # `steps.tag.outcome` guards the close branch: a tag step that itself
         # died also reports an empty tag, and that is not "caught up".
-        if: always() && steps.tag.outcome == 'success' && (steps.tag.outputs.tag == '' || steps.tag.outputs.age_days >= 7)
+        if: always() && steps.tag.outcome == 'success' && (steps.tag.outputs.caught_up == 'true' || steps.tag.outputs.age_days >= 7)
         env:
           GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
+          CAUGHT_UP: ${{ steps.tag.outputs.caught_up }}
           AGE: ${{ steps.tag.outputs.age_days }}
         run: |
           set -euo pipefail
           gh label create upstream-drift --description "Fork is behind upstream stable" --color fbca04 || true
           existing=$(gh issue list --label upstream-drift --state open --json number --jq '.[0].number // empty')
-          if [ -z "$TAG" ]; then
+          if [ "$CAUGHT_UP" = "true" ]; then
             # Caught up. Reverse state: the issue that announced the drift is
             # the issue that has to close when it ends.
             if [ -n "$existing" ]; then

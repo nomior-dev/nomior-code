@@ -19,6 +19,9 @@ concurrency:
 
 env:
   UPSTREAM_REPO: https://github.com/pingdotgg/t3code.git
+  # The `upstream` remote this workflow adds is what `gh` would otherwise pick
+  # as its default repo, sending the failure issue to pingdotgg/t3code.
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   canary:
@@ -96,8 +99,11 @@ jobs:
         if: steps.tag.outputs.tag != ''
         run: pnpm build
 
+      # No `tag != ''` guard: a checkout, fetch or setup that dies before the
+      # tag resolves is exactly the failure worth hearing about, and gating on
+      # the tag silenced every one of them.
       - name: Report failure as issue
-        if: failure() && steps.tag.outputs.tag != ''
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
@@ -105,12 +111,13 @@ jobs:
           set -euo pipefail
           gh label create upstream-canary --description "Upstream nightly canary failures" --color d93f0b || true
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          target="${TAG:-no nightly tag resolved}"
           existing=$(gh issue list --label upstream-canary --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "Canary still failing against \`$TAG\` — [run]($run_url)"
+            gh issue comment "$existing" --body "Canary still failing (\`$target\`) — [run]($run_url)"
           else
             gh issue create \
-              --title "Upstream canary failing against $TAG" \
+              --title "Upstream canary failing" \
               --label upstream-canary \
-              --body "Merge+typecheck+build against upstream nightly \`$TAG\` failed — [run]($run_url). A breaking upstream change is likely on its way to stable; check the run log before the next sync PR."
+              --body "Merge+typecheck+build against upstream nightly \`$target\` failed — [run]($run_url). A breaking upstream change is likely on its way to stable; check the run log before the next sync PR."
           fi
