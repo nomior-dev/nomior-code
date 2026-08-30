@@ -34,14 +34,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Repo history must stay publishable (PLAN.md: private-first with
-      # public-grade history hygiene). GITLEAKS_LICENSE is required for repos
-      # under an organization; free for individual accounts.
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch upstream --no-tags '+refs/heads/main:refs/remotes/upstream/main'
+
+      # Repo history must stay publishable (PLAN.md: public-grade history
+      # hygiene). The gitleaks CLI is MIT and needs no key; only the action
+      # wrapper requires GITLEAKS_LICENSE for org-owned repos, public ones
+      # included, so the job runs the binary and depends on no secret.
+      #
+      # Scope is our own commits — everything not already reachable from
+      # upstream. Upstream's history is published at pingdotgg/t3code, so its
+      # twelve test-fixture hits are neither ours to fix nor a disclosure, and
+      # failing on them would only teach us to stop reading this job.
+      # Allowlists live in .gitleaks.toml.
       - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks detect --redact --no-banner --verbose \
+            --log-opts="HEAD --not --remotes=upstream"
 
   fork_manifest:
     name: Fork Manifest

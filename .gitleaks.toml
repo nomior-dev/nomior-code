@@ -1,0 +1,24 @@
+# Secret-scan config for the fork's history, which must stay publishable.
+#
+# `useDefault` keeps every upstream gitleaks rule; this file only adds
+# allowlists. An allowlist entry needs a reason a reviewer can check, because
+# the alternative reading of any entry here is "someone silenced a real leak".
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+The redactor's own test feeds it credential-shaped strings and asserts they
+come back redacted, so the fixtures have to look like real tokens. They are
+published examples, not secrets: AKIAIOSFODNN7EXAMPLE is AWS's documented
+sample key and the JWT is the jwt.io HS256 sample over {"sub":"1234567890"}.
+"""
+paths = ['''apps/server/src/nomior/context/redactSecrets\.test\.ts''']
+
+[[allowlists]]
+description = """
+Vendored read-only upstream references (.repos/). Already public at their own
+origins, never imported, and their test fixtures include sample PEM blocks.
+"""
+paths = ['''^\.repos/''']
