@@ -15,7 +15,7 @@
  * questions currently score 1.00 at every k against an 8-source fixture
  * corpus, so the gates below are floors with little discriminating power —
  * up to 2 questions can leave top-1 before r@1 trips. The real quality gate
- * is the M1 golden set (25+ questions over real minutes data, per PLAN.md);
+ * is the M1 golden set (25+ questions over real minutes data);
  * when it lands, grow this corpus or point the harness at it.
  *
  * @module RetrievalEval

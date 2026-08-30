@@ -3,7 +3,7 @@
  * the provider adapters already emit and maintains a per-instance headroom
  * table (in-memory, mirrored to `nomior_instance_rate_limits`).
  *
- * Signal sources (see PLAN.md "Credential-free rate-limit signals"):
+ * Signal sources:
  * - Claude: `rate_limit_event` SDK messages forwarded as
  *   `account.rate-limits.updated` (`provider/Layers/ClaudeAdapter.ts`).
  * - Codex: `account/rateLimits/updated` app-server notifications forwarded the

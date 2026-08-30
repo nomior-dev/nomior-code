@@ -13,7 +13,7 @@ const schemaHasDescription = (schema: unknown): boolean => {
     .some((members) => members.some(schemaHasDescription));
 };
 
-it("exposes exactly the four PLAN.md context tools", () => {
+it("exposes exactly the four context tools", () => {
   expect(Object.keys(NomiorContextToolkit.tools).sort()).toEqual([
     "context_decisions",
     "context_get",
@@ -35,7 +35,7 @@ it("exports provider-compatible object schemas with described, token-cheap defin
       tool.description?.length ?? 0,
       `${tool.name} should have a useful description`,
     ).toBeGreaterThan(40);
-    // Tool schemas ride in every agent turn; keep them cheap (PLAN.md).
+    // Tool schemas ride in every agent turn; keep them cheap.
     expect(
       tool.description?.length ?? 0,
       `${tool.name} description must stay token-cheap`,
@@ -66,7 +66,7 @@ it("keeps context_search hot-path friendly: only query is required", () => {
   expect(schema.required).toEqual(["query"]);
 });
 
-it("shapes the remaining tools per PLAN.md", () => {
+it("shapes the remaining tools", () => {
   const requiredOf = (name: keyof typeof NomiorContextToolkit.tools) => {
     const schema = Tool.getJsonSchema(NomiorContextToolkit.tools[name]) as {
       readonly properties?: Readonly<Record<string, unknown>>;

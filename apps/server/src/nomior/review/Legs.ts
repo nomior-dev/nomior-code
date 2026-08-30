@@ -4,7 +4,7 @@
  * Legs are described by data (`ReviewLegConfig`); execution is behind the
  * `LegRunner` port so the engine core and its tests never talk to a real
  * provider. Brief building follows the Codex developer-instructions gating
- * pattern (PLAN.md): a brief must never describe a tool that is not attached
+ * pattern: a brief must never describe a tool that is not attached
  * to that leg.
  */
 import { ProviderInstanceId, TrimmedNonEmptyString, type ProjectId } from "@t3tools/contracts";

@@ -1,7 +1,7 @@
 # Daily upstream sync: merge the newest unmerged upstream STABLE tag into a
 # sync/upstream-<tag> branch and open a labeled PR. Auto-merge is deliberately
-# NOT enabled yet — the plan (PLAN.md, "Fork discipline") enables it only after
-# several observed clean runs; until then a human merges the PR.
+# NOT enabled yet — it turns on only after several observed clean runs;
+# until then a human merges the PR.
 #
 # Uses NOMIOR_SYNC_TOKEN (a PAT with contents+pull-requests write) when
 # configured so the pushed branch and PR trigger CI; the default GITHUB_TOKEN
@@ -184,7 +184,7 @@ jobs:
 
           Fork-manifest check after merge: **$CHECK** (\`pnpm nomior:check-manifest\`)
 
-          Auto-merge is intentionally not enabled yet (PLAN.md, "Fork discipline"): merge manually once checks are green.
+          Auto-merge is intentionally not enabled yet: merge manually once checks are green.
           EOF
           )
 

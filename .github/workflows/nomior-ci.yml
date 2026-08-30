@@ -42,10 +42,10 @@ jobs:
           git remote add upstream "$UPSTREAM_REPO"
           git fetch upstream --no-tags '+refs/heads/main:refs/remotes/upstream/main'
 
-      # Repo history must stay publishable (PLAN.md: public-grade history
-      # hygiene). The gitleaks CLI is MIT and needs no key; only the action
-      # wrapper requires GITLEAKS_LICENSE for org-owned repos, public ones
-      # included, so the job runs the binary and depends on no secret.
+      # Repo history must stay publishable. The gitleaks CLI is MIT and needs
+      # no key; only the action wrapper requires GITLEAKS_LICENSE for org-owned
+      # repos, public ones included, so the job runs the binary and depends on
+      # no secret.
       #
       # Scope is our own commits — everything not already reachable from
       # upstream. Upstream's history is published at pingdotgg/t3code, so its

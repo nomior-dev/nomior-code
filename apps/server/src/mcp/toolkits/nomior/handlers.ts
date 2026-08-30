@@ -32,7 +32,7 @@ const SNIPPET_OVERHEAD_TOKENS = 24;
 
 /**
  * Rough token heuristic; the cap is a guardrail, not an invoice. Weighted per
- * character because PLAN.md's corpus is EN/RU/UK: ASCII ≈ 4 chars/token,
+ * character because the corpus is EN/RU/UK: ASCII ≈ 4 chars/token,
  * non-ASCII (Cyrillic included) ≈ 2 chars/token, so a flat chars/4 would
  * undercount Russian/Ukrainian text roughly 2x.
  */

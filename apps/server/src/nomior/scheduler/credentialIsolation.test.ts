@@ -1,5 +1,5 @@
 /**
- * Structural guard for the provider-account policy (PLAN.md): scheduler
+ * Structural guard for the provider-account policy: scheduler
  * signals are credential-free by construction, and the review engine talks
  * to providers only through the `LegRunner` port. These tests fail if anyone
  * wires a nomior module to credential storage, provider homes, or

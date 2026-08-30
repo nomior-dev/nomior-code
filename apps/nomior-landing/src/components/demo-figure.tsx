@@ -1,7 +1,7 @@
 /**
  * Frame for a Playwright-recorded demo GIF.
  *
- * Demos are code (PLAN.md, M6): `scripts/nomior/record-demo-gifs.ts` re-records
+ * Demos are code: `scripts/nomior/record-demo-gifs.ts` re-records
  * each one from the real app, so the frames here carry the exact file name and
  * aspect ratio the recorder emits. The box reserves its full height whether or
  * not the file exists, so a landing recording drops in without moving a pixel

@@ -10,8 +10,7 @@ additive files (`apps/server/src/nomior/**`, `packages/nomior-*`,
 need an entry.
 
 Keep entries to registration lines, branding display strings, and policy files.
-Anything larger belongs in an additive module — see the fork discipline section
-of `PLAN.md`.
+Anything larger belongs in an additive module.
 
 ## Format
 
@@ -193,7 +192,7 @@ newest unmerged upstream stable tag into `sync/upstream-<tag>`, labels it
 touched. If the open sync branch carries commits not authored by
 `nomior-sync-bot` (a human pushed fixes onto the PR), the run leaves the
 branch and PR untouched instead of force-pushing over them. Auto-merge stays
-off until several clean runs have been observed (PLAN.md, "Fork discipline").
+off until several clean runs have been observed.
 `.github/workflows/nomior-canary.yml` builds daily against upstream's newest
 nightly tag for advance warning and gates nothing.
 

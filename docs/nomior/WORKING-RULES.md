@@ -1,6 +1,6 @@
 # Nomior Code — fork working rules
 
-This repo is a **private fork of [pingdotgg/t3code](https://github.com/pingdotgg/t3code)** (MIT). Upstream history is merged; `upstream` remote points at it. Product plan: `PLAN.md`. Fork accounting: `docs/nomior/FORK-MANIFEST.md`.
+This repo is a **private fork of [pingdotgg/t3code](https://github.com/pingdotgg/t3code)** (MIT). Upstream history is merged; `upstream` remote points at it. Product plan: the private `nomior-dev/nomior-code-plan` repo. Fork accounting: `docs/nomior/FORK-MANIFEST.md`.
 
 ## The one rule that keeps this fork alive
 

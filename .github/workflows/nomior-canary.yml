@@ -1,7 +1,7 @@
 # Daily canary: merge upstream's newest NIGHTLY tag into a throwaway local
 # branch (never pushed) and typecheck + build. Gives days of advance warning
-# before a breaking upstream change reaches a stable tag (PLAN.md, "Fork
-# discipline"). Failures open/refresh an issue; this workflow gates nothing.
+# before a breaking upstream change reaches a stable tag. Failures
+# open/refresh an issue; this workflow gates nothing.
 name: Nomior Canary
 
 on:

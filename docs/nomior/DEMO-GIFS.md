@@ -2,7 +2,7 @@
 
 The landing page's four workflow demos are **code, not assets**. They are
 re-recorded from a running, seeded Nomior Code by
-`scripts/nomior/record-demo-gifs.ts` (PLAN.md, M6), so a demo cannot drift from
+`scripts/nomior/record-demo-gifs.ts`, so a demo cannot drift from
 what the product does. Nothing in the pipeline mocks a frame: if the app is not
 up, or a step's target is missing from the UI, the run fails and prints the
 command that fixes it.

@@ -1,7 +1,7 @@
 /**
  * GmailDriver — strictly opt-in Gmail ingestion.
  *
- * The selector contract (PLAN.md "Google connectors"): the driver refuses
+ * The selector contract: the driver refuses
  * to sync until the user explicitly selects labels, senders, and/or
  * threads — there is no whole-mailbox default, structurally. Incremental
  * sync runs `users.history.list` from the stored `historyId`; when Google

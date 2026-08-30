@@ -847,7 +847,7 @@ export const seedMeetings: ReadonlyArray<SeedMeeting> = [
  * `verified` and `procedural` memories are established knowledge and are
  * ingested into the broker. `candidate` memories are NOT: they wait for an
  * explicit decision, and the simulator asserts they never surface in
- * retrieval (PLAN.md — nothing promotes without approval).
+ * retrieval: nothing promotes without approval.
  */
 export type SeedMemoryStatus = "verified" | "procedural";
 

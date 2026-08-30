@@ -4,7 +4,7 @@
  * The engine is a state machine over a persisted job table
  * (`nomior_review_jobs`): Queue → Reviewing → WaitingExternal → Approved /
  * NotApproved / Failed, with idempotent receipts keyed by (repo, target,
- * head sha). See PLAN.md "Review engine".
+ * head sha).
  */
 import { IsoDateTime, NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";

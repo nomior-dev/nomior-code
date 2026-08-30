@@ -1,5 +1,5 @@
 /**
- * Per-repo review playbooks: judgment separated from mechanics (PLAN.md).
+ * Per-repo review playbooks: judgment separated from mechanics.
  *
  * A playbook is a markdown document with three required sections —
  * `## Verify` (how to exercise the change), `## Context` (what a reviewer

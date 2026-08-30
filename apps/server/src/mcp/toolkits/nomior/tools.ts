@@ -1,10 +1,10 @@
 /**
  * Nomior context toolkit - MCP tool definitions for the context broker.
- * Exactly four tools (PLAN.md "Context Broker + MCP toolkit"): one hot search
+ * Exactly four tools: one hot search
  * tool plus three drill-down/write tools, every description kept token-cheap
  * because tool schemas ride in the agent's context on every turn.
  *
- * Defer/lazy loading, investigated 2026-08-29: PLAN.md asks for
+ * Defer/lazy loading, investigated 2026-08-29: the design asks for
  * `defer_loading: true` on everything but `context_search`, but no such field
  * exists to publish. The MCP spec (2025-06-18) has no defer hint on Tool;
  * effect's McpServer can publish arbitrary `_meta` via the `Tool.Meta`

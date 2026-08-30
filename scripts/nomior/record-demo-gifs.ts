@@ -4,10 +4,9 @@
 /**
  * Demo GIF recorder for the Nomior Code landing page.
  *
- * Demos are code (PLAN.md, M6): this script re-records the landing page's
+ * Demos are code: this script re-records the landing page's
  * workflow GIFs by driving the real, seeded app with Playwright, so a demo can
- * never drift from what the product does. It records the four flows PLAN.md
- * names — a cited context answer, the multi-account calendar week, the
+ * never drift from what the product does. It records four flows — a cited context answer, the multi-account calendar week, the
  * scheduler picking an instance, and a review card crossing the board — and
  * writes them into `apps/nomior-landing/public/demos/`.
  *

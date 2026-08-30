@@ -14,7 +14,7 @@
 // Review board
 // ---------------------------------------------------------------------------
 
-/** Mirrors the review engine's state machine (PLAN.md, "Review board"). */
+/** Mirrors the review engine's state machine. */
 export type ReviewJobStatus =
   | "queue"
   | "reviewing"

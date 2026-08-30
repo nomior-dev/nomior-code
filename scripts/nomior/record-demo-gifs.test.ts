@@ -111,7 +111,7 @@ describe("demo GIF manifest", () => {
     }
   });
 
-  it("covers the four flows PLAN.md names", () => {
+  it("covers the four landing-page flows", () => {
     expect(DEMO_GIFS.map((spec) => spec.name)).toEqual([
       "cited-answer.gif",
       "calendar-week.gif",
