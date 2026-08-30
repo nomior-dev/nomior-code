@@ -389,7 +389,7 @@ export interface DemoPage {
   goto(url: string, options?: { waitUntil?: "domcontentloaded" | "load" }): Promise<unknown>;
   url(): string;
   waitForURL(predicate: (url: URL) => boolean, options?: { timeout?: number }): Promise<void>;
-  getByRole(role: string, options?: { name?: string }): DemoLocator;
+  getByRole(role: string, options?: { name?: string; exact?: boolean }): DemoLocator;
   getByLabel(name: string, options?: { exact?: boolean }): DemoLocator;
   getByText(text: string, options?: { exact?: boolean }): DemoLocator;
   keyboard: { press(key: string): Promise<void> };
