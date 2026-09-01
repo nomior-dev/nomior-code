@@ -1,4 +1,5 @@
 import { assert, it } from "@effect/vitest";
+import { NOMIOR_PRODUCT_NAME } from "@t3tools/shared/nomiorBrand";
 
 import { formatServiceStatus } from "./service.ts";
 
@@ -14,7 +15,7 @@ it("reports the installed service version and host paths", () => {
   assert.equal(
     formatServiceStatus(status, "0.0.29"),
     [
-      "T3 Code service",
+      `${NOMIOR_PRODUCT_NAME} service`,
       "  Status: installed · t3@0.0.29",
       "  Unit: /home/me/.config/systemd/user/nomior.service",
       "  Logs: /home/me/.t3/userdata/logs/boot-service.log",
