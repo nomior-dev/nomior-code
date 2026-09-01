@@ -69,7 +69,7 @@ const RELEASE_ASSETS = {
 
 const VARIANT_CONFIG = {
   development: {
-    appName: `${NOMIOR_PRODUCT_NAME} Dev`,
+    appName: "T3 Code Dev",
     scheme: "t3code-dev",
     iosBundleIdentifier: "com.t3tools.t3code.dev",
     androidPackage: "com.t3tools.t3code.dev",
@@ -77,7 +77,7 @@ const VARIANT_CONFIG = {
     assets: DEVELOPMENT_ASSETS,
   },
   preview: {
-    appName: `${NOMIOR_PRODUCT_NAME} Preview`,
+    appName: "T3 Code Preview",
     scheme: "t3code-preview",
     iosBundleIdentifier: "com.t3tools.t3code.preview",
     androidPackage: "com.t3tools.t3code.preview",
@@ -85,7 +85,7 @@ const VARIANT_CONFIG = {
     assets: PREVIEW_ASSETS,
   },
   production: {
-    appName: NOMIOR_PRODUCT_NAME,
+    appName: "T3 Code",
     scheme: "t3code",
     iosBundleIdentifier: "com.t3tools.t3code",
     androidPackage: "com.t3tools.t3code",
@@ -129,7 +129,7 @@ const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
       {
         name: "AgentActivity",
         displayName: "Agent Activity",
-        description: `Shows the current state of active ${NOMIOR_PRODUCT_NAME} agents.`,
+        description: "Shows the current state of active T3 Code agents.",
         supportedFamilies: ["systemSmall", "systemMedium", "accessoryRectangular"],
       },
     ],
@@ -205,7 +205,8 @@ const config: ExpoConfig = {
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: true,
       },
-      NSLocalNetworkUsageDescription: `Allow ${NOMIOR_PRODUCT_NAME} to connect to ${NOMIOR_PRODUCT_NAME} servers on your local network or tailnet.`,
+      NSLocalNetworkUsageDescription:
+        "Allow T3 Code to connect to T3 Code servers on your local network or tailnet.",
       ITSAppUsesNonExemptEncryption: false,
       // The App Store screenshot harness rotates the iPad interface from
       // inside the app (CI denies osascript the Accessibility access that
@@ -299,7 +300,7 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: `Allow ${NOMIOR_PRODUCT_NAME} to use your microphone for voice input.`,
+        microphonePermission: "Allow T3 Code to use your microphone for voice input.",
         recordAudioAndroid: false,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
@@ -308,7 +309,7 @@ const config: ExpoConfig = {
     [
       "expo-camera",
       {
-        cameraPermission: `Allow ${NOMIOR_PRODUCT_NAME} to access your camera so you can scan pairing QR codes.`,
+        cameraPermission: "Allow T3 Code to access your camera so you can scan pairing QR codes.",
         microphonePermission: false,
         barcodeScannerEnabled: true,
         recordAudioAndroid: false,
@@ -388,4 +389,11 @@ const config: ExpoConfig = {
   owner: "pingdotgg",
 };
 
-export default config;
+// Upstream owns every user-visible string in this config. Renaming the product
+// once on the way out keeps the individual lines identical to upstream's, so
+// their edits to this file merge without conflicts.
+const brandProductName = <T>(value: T): T =>
+  // @effect-diagnostics preferSchemaOverJson:off - structural clone of plain config data.
+  JSON.parse(JSON.stringify(value).replaceAll("T3 Code", NOMIOR_PRODUCT_NAME)) as T;
+
+export default brandProductName(config);
