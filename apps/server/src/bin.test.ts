@@ -13,6 +13,7 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import * as NetService from "@t3tools/shared/Net";
+import { NOMIOR_PRODUCT_NAME } from "@t3tools/shared/nomiorBrand";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as DateTime from "effect/DateTime";
@@ -207,7 +208,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     Effect.gen(function* () {
       const { output } = yield* captureStdout(runCli(["service", "--help"], noConnectCli));
 
-      assert.include(output, "Manage the T3 Code background service.");
+      assert.include(output, `Manage the ${NOMIOR_PRODUCT_NAME} background service.`);
       assert.include(output, "install");
       assert.include(output, "uninstall");
       assert.include(output, "update");
