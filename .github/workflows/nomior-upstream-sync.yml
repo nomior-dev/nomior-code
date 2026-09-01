@@ -169,8 +169,60 @@ jobs:
         if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
         run: git push --force-with-lease origin "HEAD:refs/heads/sync/upstream-${{ steps.tag.outputs.tag }}"
 
-      - name: Open or update pull request
+      # A GITHUB_TOKEN push raises no workflow run, which is why the sync PR
+      # used to arrive with nothing to merge on. Dispatching does work with
+      # that token, so the branch gets the real suite rather than a copy of it
+      # inlined here, and this job waits for the verdict.
+      - name: Verify the merged tree
         if: steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+          BRANCH: sync/upstream-${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run nomior-ci.yml --ref "$BRANCH"
+          # The run does not exist the instant dispatch returns.
+          run_id=""
+          for _ in $(seq 1 30); do
+            sleep 10
+            run_id=$(gh run list --workflow nomior-ci.yml --branch "$BRANCH" \
+              --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run_id" ] && break
+          done
+          if [ -z "$run_id" ]; then
+            echo "CI never started for $BRANCH." >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Watching ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/$run_id"
+          # `gh run watch --exit-status` exits non-zero on a red run, which
+          # would skip the reporting below, so read the conclusion instead.
+          gh run watch "$run_id" --interval 20 >/dev/null 2>&1 || true
+          verdict=$(gh run view "$run_id" --json conclusion --jq '.conclusion // "unknown"')
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "CI on $BRANCH: $verdict"
+
+      # The whole point: a clean merge that passes the same suite main is held
+      # to needs no opinion from anybody. Only a conflict or a red run does.
+      - name: Land the sync
+        if: steps.verify.outputs.verdict == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          BRANCH: sync/upstream-${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git push origin "HEAD:refs/heads/main"
+          git push origin --delete "$BRANCH" || true
+          echo "Landed $TAG on main."
+          existing=$(gh issue list --label upstream-sync-failed --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Sync is green again: \`$TAG\` landed on main."
+          fi
+
+      - name: Open or update pull request
+        if: steps.verify.outputs.verdict != 'success' && steps.tag.outputs.tag != '' && steps.guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.NOMIOR_SYNC_TOKEN || github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
@@ -195,7 +247,7 @@ jobs:
 
           Fork-manifest check after merge: **$CHECK** (\`pnpm nomior:check-manifest\`)
 
-          Auto-merge is intentionally not enabled yet: merge manually once checks are green.
+          This PR exists because CI on the merged tree did not pass — a green run lands on \`main\` on its own and opens nothing. Fix the branch; the next run lands it.
           EOF
           )
 

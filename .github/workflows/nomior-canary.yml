@@ -99,6 +99,21 @@ jobs:
         if: steps.tag.outputs.tag != ''
         run: pnpm build
 
+      # Reverse state: the run that proves the warning is over is the run that
+      # has to withdraw it, or the issue outlives its cause and stops meaning
+      # anything.
+      - name: Close the canary issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label upstream-canary --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Canary is green against \`$TAG\`."
+          fi
+
       # No `tag != ''` guard: a checkout, fetch or setup that dies before the
       # tag resolves is exactly the failure worth hearing about, and gating on
       # the tag silenced every one of them.
