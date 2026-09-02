@@ -1,11 +1,11 @@
 # Daily upstream sync: merge the newest unmerged upstream STABLE tag into a
-# sync/upstream-<tag> branch and open a labeled PR. Auto-merge is deliberately
-# NOT enabled yet — it turns on only after several observed clean runs;
-# until then a human merges the PR.
+# sync/upstream-<tag> branch, run CI against it, and fast-forward main when CI
+# is green. A conflict or a red run falls back to a labeled PR for a human.
 #
-# Uses NOMIOR_SYNC_TOKEN (a PAT with contents+pull-requests write) when
-# configured so the pushed branch and PR trigger CI; the default GITHUB_TOKEN
-# works too but GitHub suppresses workflow runs for pushes it makes.
+# GitHub suppresses workflow runs for pushes made with GITHUB_TOKEN, so the
+# pushed branch never triggers CI on its own — the verify step dispatches it
+# explicitly, which is why this job needs `actions: write`. NOMIOR_SYNC_TOKEN
+# (a PAT with contents+pull-requests write) is used instead when configured.
 name: Nomior Upstream Sync
 
 on:
@@ -17,6 +17,9 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  # The verify step dispatches nomior-ci.yml against the sync branch; without
+  # this the dispatch 403s and no sync can ever land.
+  actions: write
 
 concurrency:
   group: nomior-upstream-sync
